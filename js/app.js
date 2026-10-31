@@ -49,7 +49,9 @@
   // only our own /img/ files are accepted as photos (blocks external or script-ish URLs smuggled into the catalogue)
   const safeImage = (v) => (/^img\/[\w.\-]{1,120}$/.test(String(v || "")) ? v : "");
   const safeColor = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || "")) ? v : "#cccccc");
-  const imgOf = (p, hex) => safeImage(p.image) || art(p.category, hex || (p.colors && p.colors[0] && p.colors[0].h));
+  // a product's real photos (1st = cover); up to 10. Falls back to the old single `image` field.
+  const photosOf = (p) => ((p.images && p.images.length ? p.images : [p.image]).map(safeImage).filter(Boolean)).slice(0, 10);
+  const imgOf = (p, hex) => photosOf(p)[0] || art(p.category, hex || (p.colors && p.colors[0] && p.colors[0].h));
 
   /* ---------- cart ---------- */
   const Cart = {
@@ -73,7 +75,7 @@
       if (p) lines.push({ ...i, p, amount: p.price * i.qty });
     });
     const subtotal = lines.reduce((s, l) => s + l.amount, 0);
-    const shipping = !subtotal || subtotal >= CFG.FREE_SHIPPING_ABOVE ? 0 : CFG.SHIPPING_FEE;
+    const shipping = !subtotal || subtotal > CFG.FREE_SHIPPING_ABOVE ? 0 : CFG.SHIPPING_FEE;
     return { lines, subtotal, shipping, total: subtotal + shipping };
   }
 
@@ -136,7 +138,7 @@
     const link = (href, t, key) => `<a href="${href}"${key === active ? ' aria-current="page"' : ""}>${t}</a>`;
     const hd = $("#hdr");
     if (hd) hd.outerHTML = `<a class="sr skip" href="#main">Skip to content</a>
-    <div class="topbar">Free shipping above ${money(CFG.FREE_SHIPPING_ABOVE)} · Secure payment by PayU${DEMO ? " · <b>DEMO MODE</b>" : ""}</div>
+    <div class="topbar">Delivery ${money(CFG.SHIPPING_FEE)} · free above ${money(CFG.FREE_SHIPPING_ABOVE)} · Secure payment by PayU${DEMO ? " · <b>DEMO MODE</b>" : ""}</div>
     <header class="site"><div class="wrap bar">
       <button class="ibtn" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="mainnav">${ICON.menu}</button>
       <a class="logo" href="index.html" aria-label="VIN Fashions home"><img src="assets/logo.svg" alt="VIN Fashions" width="170" height="41"></a>
@@ -162,5 +164,5 @@
     updateBadge();
   }
 
-  window.VIN = { safeImage, safeColor, Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
+  window.VIN = { photosOf, safeImage, safeColor, Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
 })();

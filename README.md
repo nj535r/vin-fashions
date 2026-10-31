@@ -38,7 +38,9 @@ Passwords are salted and hashed (3000 rounds of SHA-256, the best Apps Script of
 Paid orders are also e-mailed to nagaarjun1157@gmail.com (cc help.vinfashions@gmail.com); the buyer gets a receipt. Prices are recomputed from `products.json` on the server; PayU's response hash and amount are verified before an order counts as paid.
 
 ## 3. Admin
-Log in at `https://vinfashions.online/admin/`. Adding/editing a product commits `products.json` (and the photo in `img/`); the site updates about a minute later. Stock is edited by hand (0 = sold out).
+Log in at `https://vinfashions.online/admin/`. Adding/editing a product commits `products.json` (and its photos in `img/`); the site updates about a minute later. Stock is edited by hand (0 = sold out).
+**Photos:** add **2 to 10** photos per product (up to 10 at once; each is resized to 1400 px). The first is the cover shown in the shop; use the arrows to reorder and the cross to remove (removed photos are deleted from the repo). Leave a product with no photos to show the coloured illustration. Shoppers get thumbnails, hover-zoom on desktop, and a full-screen viewer (click the photo) with zoom buttons, mouse-wheel / double-click / pinch zoom, drag to pan, and arrow keys.
+**Delivery charge:** Rs 100 on orders up to and including Rs 2,000; free above Rs 2,000. Change `SHIPPING_FEE` / `FREE_SHIPPING_ABOVE` in `js/config.js` **and** `FEE` / `FREE_ABOVE` in `apps-script/Code.gs` (the server price is the one charged), then redeploy the script.
 
 ## Local preview
 `python -m http.server 8080` → http://localhost:8080 (clear `API` in `js/config.js` to try checkout in demo mode without PayU).

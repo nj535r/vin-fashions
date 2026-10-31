@@ -18,8 +18,8 @@
       <b>${money(l.amount)}</b></div>`).join("");
     $("#sum").innerHTML=`<h2 style="font-size:1.15rem">Order summary</h2>
       <div><span>Subtotal</span><span>${money(pr.subtotal)}</span></div>
-      <div><span>Shipping</span><span>${pr.shipping?money(pr.shipping):"Free"}</span></div>
-      ${pr.shipping?`<div class="muted" style="font-size:.85rem">Add ${money(CFG.FREE_SHIPPING_ABOVE-pr.subtotal)} more for free shipping</div>`:""}
+      <div><span>Delivery</span><span>${pr.shipping?money(pr.shipping):"Free"}</span></div>
+      ${pr.shipping?`<div class="muted" style="font-size:.85rem">Add ${money(CFG.FREE_SHIPPING_ABOVE+1-pr.subtotal)} more for free delivery (orders above ${money(CFG.FREE_SHIPPING_ABOVE)})</div>`:""}
       <div class="tot"><span>Total</span><span>${money(pr.total)}</span></div>`;
     return pr;
   }

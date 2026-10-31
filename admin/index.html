@@ -46,9 +46,11 @@
       <div class="fld"><label for="f_sizes">Sizes (comma separated)</label><input id="f_sizes" placeholder="S, M, L, XL" maxlength="120"></div>
       <div class="fld full"><label for="f_colors">Colours – name:#hex, comma separated</label><input id="f_colors" placeholder="Rose:#e8a0b0, Maroon:#9f1239" maxlength="300"></div>
       <div class="fld full"><label for="f_desc">Description</label><textarea id="f_desc" rows="3" maxlength="1000"></textarea></div>
-      <div class="fld full"><label for="f_file">Photo (JPG/PNG – resized automatically)</label><input id="f_file" type="file" accept="image/*">
-        <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><img id="f_prev" alt="Photo preview" style="width:70px;height:88px;object-fit:cover;border:1px solid var(--line);border-radius:4px" hidden><button class="btn sm ghost" type="button" id="f_clear" hidden>Remove photo</button></div>
-        <span class="muted" style="font-size:.85rem">No photo? A coloured illustration is shown instead.</span></div>
+      <div class="fld full"><label for="f_file">Photos – add 2 to 10 (JPG/PNG, resized automatically)</label>
+        <input id="f_file" type="file" accept="image/*" multiple>
+        <div class="photos" id="photos" aria-live="polite"></div>
+        <span class="muted" style="font-size:.85rem" id="pcount"></span><br>
+        <span class="muted" style="font-size:.85rem">The first photo is the cover. Use ◀ ▶ to reorder. No photos? A coloured illustration is shown instead.</span></div>
       <label class="fld"><input type="checkbox" id="f_feat"> Show on home page</label>
       <label class="fld"><input type="checkbox" id="f_act" checked> Visible in shop</label>
     </div>

@@ -14,8 +14,8 @@ const CFG = {
   SITE: "https://vinfashions.online",
   FORWARD_TO: "nagaarjun1157@gmail.com",
   SUPPORT: "help.vinfashions@gmail.com",
-  FREE_ABOVE: 999,
-  FEE: 60,
+  FREE_ABOVE: 2000, // delivery is free only when the order is ABOVE this amount
+  FEE: 100,         // standard delivery charge for orders up to and including FREE_ABOVE
   PAYU_ENV: "test" // change to "live" only after PayU activates your account
 };
 
@@ -82,7 +82,7 @@ function createOrder(body) {
   });
   if (!lines.length) throw new Error("Your bag is empty");
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
-  const shipping = subtotal >= CFG.FREE_ABOVE ? 0 : CFG.FEE, total = subtotal + shipping;
+  const shipping = subtotal > CFG.FREE_ABOVE ? 0 : CFG.FEE, total = subtotal + shipping;
   const c = body.customer, id = "VIN" + Date.now().toString(36).toUpperCase() + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
   const order = {
     id: id, userId: userFromToken(body.token), items: lines, subtotal: subtotal, shipping: shipping, total: total, status: "pending", createdAt: Date.now(),
