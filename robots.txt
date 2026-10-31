@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /cart.html
+Disallow: /account.html
+Disallow: /order.html
+
+Sitemap: https://vinfashions.online/sitemap.xml

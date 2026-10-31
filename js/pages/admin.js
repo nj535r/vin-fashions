@@ -24,6 +24,22 @@
   async function commit(msg){
     const j=await gh("/contents/products.json",{method:"PUT",body:{message:msg,content:b64(JSON.stringify(products,null,1)),sha,branch:GH.branch}});
     sha=j.content.sha;
+    updateSitemap();                      // keep sitemap.xml in step with the catalogue (best effort, never blocks saving)
+  }
+  const xesc=t=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  function sitemapXml(){
+    const base=CFG.SITE+"/", d=new Date().toISOString().slice(0,10), live=products.filter(p=>p.active!==false);
+    const cats=[...new Set([...CFG.CATEGORIES,...live.map(p=>p.category)])];
+    const rows=[["","1.0","daily"],["shop.html","0.9","daily"],...cats.map(c=>["shop.html?cat="+encodeURIComponent(c),"0.8","daily"]),
+      ...live.map(p=>["product.html?id="+encodeURIComponent(p.id),"0.7","weekly"]),["policies.html","0.3","monthly"]];
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+
+      rows.map(([u,pr,f])=>`  <url><loc>${xesc(base+u)}</loc><lastmod>${d}</lastmod><changefreq>${f}</changefreq><priority>${pr}</priority></url>`).join("\n")+"\n</urlset>\n";
+  }
+  async function updateSitemap(){
+    try{
+      let cur; try{ cur=(await gh("/contents/sitemap.xml?ref="+GH.branch+"&t="+Date.now())).sha; }catch(e){}
+      await gh("/contents/sitemap.xml",{method:"PUT",body:{message:"Update sitemap",content:b64(sitemapXml()),sha:cur,branch:GH.branch}});
+    }catch(e){}
   }
   async function guarded(fn){ try{await fn();}catch(e){ if(e.status===409){alert("The catalogue changed elsewhere. Reloading – please repeat your change.");await load();} else alert(e.message); } }
   const call=async(action,data)=>{
