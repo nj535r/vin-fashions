@@ -5,10 +5,10 @@
  *   2. receives PayU's POST callback, verifies hash + amount      -> POST (form-encoded, from PayU)
  *   3. e-mails the order to the owner and a receipt to the buyer
  *   4. answers "is order X paid?" for the thank-you page          -> GET ?id=X
- *   5. customer accounts + order history, stored as users.json / orders.json in a PRIVATE GitHub repo
+ *   5. customer accounts + order history, stored in a Google Sheet (created automatically in this Google account)
  *   6. admin login (e-mail + password checked here) -> returns the GitHub token the admin panel needs
  * Secrets live in Project Settings -> Script properties, never in GitHub:
- *   PAYU_KEY, PAYU_SALT, GH_TOKEN (data repo only), GH_TOKEN_SITE (site repo only), SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+ *   PAYU_KEY, PAYU_SALT, GH_TOKEN_SITE (token for the site repo only, used by the admin panel), SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
  */
 const CFG = {
   SITE: "https://vinfashions.online",
@@ -16,7 +16,6 @@ const CFG = {
   SUPPORT: "help.vinfashions@gmail.com",
   FREE_ABOVE: 999,
   FEE: 60,
-  DATA_REPO: "sedhupathivishnu321/vin-fashions-data", // PRIVATE repo holding users.json + orders.json
   PAYU_ENV: "test" // change to "live" only after PayU activates your account
 };
 
@@ -134,7 +133,7 @@ function prune() {
 }
 
 
-/* ================= accounts + admin (private GitHub repo as a tiny database) ================= */
+/* ================= accounts + admin (Google Sheet as a tiny database) ================= */
 const sha256 = (s) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)
   .map((b) => ("0" + (b < 0 ? b + 256 : b).toString(16)).slice(-2)).join("");
 const hmac = (m) => Utilities.computeHmacSha256Signature(m, props().getProperty("SESSION_SECRET") || "")
@@ -142,26 +141,48 @@ const hmac = (m) => Utilities.computeHmacSha256Signature(m, props().getProperty(
 const same = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
 function hashPw(pw, salt) { let h = salt + pw; for (let i = 0; i < 3000; i++) h = sha256(h + pw); return h; }
 
-function gh(path, method, body) {
-  const r = UrlFetchApp.fetch("https://api.github.com/repos/" + CFG.DATA_REPO + path, {
-    method: method || "get", muteHttpExceptions: true, contentType: "application/json", payload: body ? JSON.stringify(body) : undefined,
-    headers: { Authorization: "Bearer " + props().getProperty("GH_TOKEN"), Accept: "application/vnd.github+json" }
-  });
-  return { code: r.getResponseCode(), json: JSON.parse(r.getContentText() || "{}") };
+// ---- database: a Google Sheet that the script creates in this Google account on first use ----
+const TABLES = {
+  "users.json": { sheet: "Users", cols: ["id", "name", "email", "phone", "salt", "pw", "address", "createdAt"], json: ["address"], nums: ["createdAt"] },
+  "orders.json": { sheet: "Orders", cols: ["id", "userId", "createdAt", "status", "fulfilment", "total", "subtotal", "shipping", "payuId", "customer", "items", "name", "phone", "summary"],
+    json: ["customer", "items"], nums: ["createdAt", "total", "subtotal", "shipping"] }
+};
+function book() {
+  const sp = props(); let id = sp.getProperty("SHEET_ID"), ss;
+  if (id) ss = SpreadsheetApp.openById(id);
+  else {
+    ss = SpreadsheetApp.create("VIN Fashions Data (do not share)"); sp.setProperty("SHEET_ID", ss.getId());
+    Object.keys(TABLES).forEach((k, i) => { const t = TABLES[k], sh = i === 0 ? ss.getSheets()[0].setName(t.sheet) : ss.insertSheet(t.sheet); sh.appendRow(t.cols); sh.setFrozenRows(1); });
+  }
+  return ss;
 }
+// Everything is stored as text so phone numbers / hex hashes are never turned into numbers by Sheets.
 function dbRead(name) {
-  const r = gh("/contents/" + name);
-  if (r.code === 404) return { sha: undefined, data: [] };
-  if (r.code !== 200) throw new Error("Database unavailable");
-  return { sha: r.json.sha, data: JSON.parse(Utilities.newBlob(Utilities.base64Decode(r.json.content.replace(/\n/g, ""))).getDataAsString()) };
+  const t = TABLES[name], sh = book().getSheetByName(t.sheet), rows = sh.getDataRange().getValues();
+  const data = rows.slice(1).filter((r) => r[0] !== "").map((r) => {
+    const o = {}; t.cols.forEach((c, i) => {
+      const v = r[i];
+      if (t.json.indexOf(c) >= 0) o[c] = v === "" ? undefined : JSON.parse(v);
+      else o[c] = t.nums.indexOf(c) >= 0 ? Number(v) : String(v);
+    }); return o;
+  });
+  return { data: data };
 }
 // read-modify-write under a lock so two simultaneous signups/orders cannot overwrite each other
 function dbUpdate(name, fn, msg) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    const cur = dbRead(name), next = fn(cur.data);
-    const w = gh("/contents/" + name, "put", { message: msg || ("Update " + name), content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(next, null, 1)).getBytes()), sha: cur.sha });
-    if (w.code !== 200 && w.code !== 201) throw new Error("Could not save");
+    const t = TABLES[name], sh = book().getSheetByName(t.sheet), next = fn(dbRead(name).data);
+    const rows = next.map((o) => t.cols.map((c) => {
+      if (c === "name") return o.customer ? o.customer.name : "";
+      if (c === "phone" && o.customer) return o.customer.phone;
+      if (c === "summary") return (o.items || []).map((i) => i.name + " x" + i.qty).join("; ");
+      if (t.json.indexOf(c) >= 0) return o[c] === undefined ? "" : JSON.stringify(o[c]);
+      return o[c] === undefined ? "" : String(o[c]);
+    }));
+    const last = sh.getLastRow();
+    if (last > 1) sh.getRange(2, 1, last - 1, t.cols.length).clearContent();
+    if (rows.length) { const r = sh.getRange(2, 1, rows.length, t.cols.length); r.setNumberFormat("@"); r.setValues(rows); }
     return next;
   } finally { lock.releaseLock(); }
 }
