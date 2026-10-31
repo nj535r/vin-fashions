@@ -43,6 +43,27 @@ Log in at `https://vinfashions.online/admin/`. Adding/editing a product commits 
 ## Local preview
 `python -m http.server 8080` → http://localhost:8080 (clear `API` in `js/config.js` to try checkout in demo mode without PayU).
 
+## Security
+**Built in**
+- Content-Security-Policy on every page: scripts only from this site (no inline scripts, no third-party code), network calls only to Google Apps Script and the GitHub API, forms only to PayU. This blocks most cross-site-scripting attacks even if a bug slips in.
+- All catalogue/customer text is HTML-escaped; product photos must be `img/...` files and colours must be `#rrggbb`; pages refuse to load inside another site's frame.
+- Prices and stock are decided on the server; PayU's reply hash and amount are verified; amounts cannot be changed from the browser.
+- Passwords are salted + hashed (never stored or returned). Login sessions are signed and expire (7 days customers, 12 hours admin). The server refuses to sign anything if `SESSION_SECRET` is missing/short.
+- Brute-force/spam limits: 5 wrong logins per account then 10-minute lock; global caps on logins, signups and orders; requests over 20 KB rejected; common passwords refused.
+- Order numbers are long and random; unpaid orders are deleted after a day.
+- Text starting with `= + - @` is neutralised in the Google Sheet so a hostile name cannot run as a spreadsheet formula.
+- The admin GitHub token only reaches the browser after an admin login, is limited to the `vin-fashions` repo (Contents only), and is kept in the tab's session storage only.
+
+**Your checklist**
+1. Turn on **two-step verification** for the GitHub account `nj535r` and for help.vinfashions@gmail.com (the Google account holds all customer data and the PayU salt).
+2. Use a **long, unique admin password**, and change any password that was ever typed in a chat. Ask PayU to regenerate the salt if it was shared.
+3. Give `GH_TOKEN_SITE` an **expiry** (e.g. 90 days) and renew it. Revoke it at once if a device is lost.
+4. Never share the "VIN Fashions Data" Google Sheet, and do not add editors to the Apps Script project.
+5. Keep GitHub **secret scanning / push protection** on (Settings -> Code security).
+6. Admin lockout: five wrong admin attempts lock admin login for 10 minutes, which also stops an attacker guessing; wait it out if it happens to you.
+
+**Known limits:** GitHub Pages cannot send security headers (so the CSP is delivered via a meta tag and clickjacking protection is script-based); Apps Script cannot run bcrypt (SHA-256 with 3000 rounds is used); there is no password-reset email yet.
+
 ## Notes
 - Fill in your real phone and shop address in `js/config.js`; PayU asks for the policy pages in `policies.html` during approval.
 - Product text is always HTML-escaped when displayed.

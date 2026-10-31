@@ -19,6 +19,7 @@ const CFG = {
   PAYU_ENV: "test" // change to "live" only after PayU activates your account
 };
 
+const ORDER_ID = /^VIN[A-Z0-9]{8,40}$/;
 const props = () => PropertiesService.getScriptProperties();
 const out = (o) => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 const sha512 = (s) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_512, s, Utilities.Charset.UTF_8)
@@ -29,6 +30,7 @@ const num = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0))
 function doGet(e) {
   const id = e && e.parameter && e.parameter.id;
   if (!id) return out({ ok: true, service: "VIN Fashions" });
+  if (!ORDER_ID.test(String(id))) return out({ error: "not found" });
   const raw = props().getProperty("o_" + id);
   if (!raw) return out({ error: "not found" });
   const o = JSON.parse(raw);
@@ -39,6 +41,7 @@ function doPost(e) {
   try {
     const type = (e.postData && e.postData.type) || "";
     if (type.indexOf("x-www-form-urlencoded") >= 0) return callback(e.parameter); // PayU
+    if (e.postData.contents.length > 20000) throw new Error("Request too large");
     const body = JSON.parse(e.postData.contents);
     if (body.action) return out(account(body));
     return out(createOrder(body));
@@ -65,6 +68,7 @@ function validCustomer(c) {
 }
 
 function createOrder(body) {
+  rate("order", 60, 600000);
   const sp = props();
   if (!sp.getProperty("PAYU_KEY") || !sp.getProperty("PAYU_SALT")) return { error: "Payments are not configured yet" };
   if (!validCustomer(body.customer)) return { error: "Please check your delivery details" };
@@ -79,7 +83,7 @@ function createOrder(body) {
   if (!lines.length) throw new Error("Your bag is empty");
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   const shipping = subtotal >= CFG.FREE_ABOVE ? 0 : CFG.FEE, total = subtotal + shipping;
-  const c = body.customer, id = "VIN" + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
+  const c = body.customer, id = "VIN" + Date.now().toString(36).toUpperCase() + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
   const order = {
     id: id, userId: userFromToken(body.token), items: lines, subtotal: subtotal, shipping: shipping, total: total, status: "pending", createdAt: Date.now(),
     customer: { name: str(c.name, 80), email: str(c.email, 100), phone: str(c.phone, 10), address: str(c.address, 250), city: str(c.city, 60), state: str(c.state, 60), pincode: str(c.pincode, 6) }
@@ -96,6 +100,7 @@ function createOrder(body) {
 }
 
 function callback(p) {
+  if (!ORDER_ID.test(String(p.txnid))) return HtmlService.createHtmlOutput("Invalid request").setTitle("VIN Fashions");
   const sp = props(), key = "o_" + p.txnid, raw = sp.getProperty(key);
   const page = (id, msg, ok) => HtmlService.createHtmlOutput(
     '<body style="font:16px system-ui;text-align:center;padding:48px 16px"><h2>' + msg + '</h2><p>Order ' + String(id).replace(/[^\w]/g, "") +
@@ -134,17 +139,37 @@ function notify(o) {
 
 // keep Script Properties small: drop orders older than 30 days (the e-mails are the permanent record)
 function prune() {
-  const all = props().getProperties(), cut = Date.now() - 30 * 864e5;
-  Object.keys(all).forEach((k) => { if (k.indexOf("o_") === 0) { try { if (JSON.parse(all[k]).createdAt < cut) props().deleteProperty(k); } catch (e) { props().deleteProperty(k); } } });
+  const all = props().getProperties(), now = Date.now();
+  Object.keys(all).forEach((k) => {
+    if (k.indexOf("o_") !== 0) return;
+    try {
+      const o = JSON.parse(all[k]), age = now - o.createdAt;
+      if (age > 30 * 864e5 || (o.status !== "paid" && age > 864e5)) props().deleteProperty(k); // unpaid attempts expire after a day
+    } catch (e) { props().deleteProperty(k); }
+  });
+}
+// at most `max` calls per `windowMs` across everyone (spam / flooding protection)
+function rate(key, max, windowMs) {
+  const sp = props(), k = "r_" + key, now = Date.now();
+  let r = JSON.parse(sp.getProperty(k) || '{"n":0,"t":0}');
+  if (now - r.t > windowMs) r = { n: 0, t: now };
+  if (r.n >= max) throw new Error("Too many requests. Please try again in a few minutes.");
+  r.n++; sp.setProperty(k, JSON.stringify(r));
 }
 
 
 /* ================= accounts + admin (Google Sheet as a tiny database) ================= */
 const sha256 = (s) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)
   .map((b) => ("0" + (b < 0 ? b + 256 : b).toString(16)).slice(-2)).join("");
-const hmac = (m) => Utilities.computeHmacSha256Signature(m, props().getProperty("SESSION_SECRET") || "")
+function secret() {
+  const k = props().getProperty("SESSION_SECRET");
+  if (!k || k.length < 16) throw new Error("Server is not configured (SESSION_SECRET)"); // never sign with an empty key
+  return k;
+}
+const hmac = (m) => Utilities.computeHmacSha256Signature(m, secret())
   .map((b) => ("0" + (b < 0 ? b + 256 : b).toString(16)).slice(-2)).join("");
 const same = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
+const COMMON_PW = ["password", "12345678", "123456789", "1234567890", "qwertyuiop", "11111111", "iloveyou", "password1", "password123", "abcd1234", "admin123", "welcome1", "qwerty123", "letmein1"];
 function hashPw(pw, salt) { let h = salt + pw; for (let i = 0; i < 3000; i++) h = sha256(h + pw); return h; }
 
 // ---- database: a Google Sheet that the script creates in this Google account on first use ----
@@ -162,6 +187,8 @@ function book() {
   }
   return ss;
 }
+const fx = (v) => (/^[=+\-@\t\r]/.test(v) ? "'" + v : v);          // neutralise formulas for anyone opening the sheet / a CSV export
+const ux = (v) => (/^'[=+\-@\t\r]/.test(v) ? v.slice(1) : v);
 // Everything is stored as text so phone numbers / hex hashes are never turned into numbers by Sheets.
 function dbRead(name) {
   const t = TABLES[name], sh = book().getSheetByName(t.sheet), rows = sh.getDataRange().getValues();
@@ -169,7 +196,7 @@ function dbRead(name) {
     const o = {}; t.cols.forEach((c, i) => {
       const v = r[i];
       if (t.json.indexOf(c) >= 0) o[c] = v === "" ? undefined : JSON.parse(v);
-      else o[c] = t.nums.indexOf(c) >= 0 ? Number(v) : String(v);
+      else o[c] = t.nums.indexOf(c) >= 0 ? Number(v) : ux(String(v));
     }); return o;
   });
   return { data: data };
@@ -180,11 +207,11 @@ function dbUpdate(name, fn, msg) {
   try {
     const t = TABLES[name], sh = book().getSheetByName(t.sheet), next = fn(dbRead(name).data);
     const rows = next.map((o) => t.cols.map((c) => {
-      if (c === "name") return o.customer ? o.customer.name : "";
-      if (c === "phone" && o.customer) return o.customer.phone;
-      if (c === "summary") return (o.items || []).map((i) => i.name + " x" + i.qty).join("; ");
+      if (c === "name" && o.customer) return fx(String(o.customer.name));
+      if (c === "phone" && o.customer) return fx(String(o.customer.phone));
+      if (c === "summary") return fx((o.items || []).map((i) => i.name + " x" + i.qty).join("; "));
       if (t.json.indexOf(c) >= 0) return o[c] === undefined ? "" : JSON.stringify(o[c]);
-      return o[c] === undefined ? "" : String(o[c]);
+      return o[c] === undefined ? "" : fx(String(o[c]));
     }));
     const last = sh.getLastRow();
     if (last > 1) sh.getRange(2, 1, last - 1, t.cols.length).clearContent();
@@ -214,16 +241,19 @@ function account(b) {
     const name = str(b.name, 80), email = str(b.email, 100).toLowerCase(), phone = str(b.phone, 10), pw = String(b.password || "");
     if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^[6-9]\d{9}$/.test(phone)) throw new Error("Please check your name, email and mobile number");
     if (pw.length < 8 || pw.length > 100) throw new Error("Password must be at least 8 characters");
+    if (COMMON_PW.indexOf(pw.toLowerCase()) >= 0 || /^(.)\1+$/.test(pw)) throw new Error("Please choose a less common password");
+    rate("signup", 30, 3600000);
     const salt = Utilities.getUuid(), u = { id: "u" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), name: name, email: email, phone: phone, salt: salt, pw: hashPw(pw, salt), createdAt: Date.now() };
     dbUpdate("users.json", (all) => { if (all.some((x) => x.email === email)) throw new Error("An account with this email already exists"); all.push(u); return all; }, "New user");
-    return { token: mkToken("u", u.id, 24 * 30), user: publicUser(u) };
+    return { token: mkToken("u", u.id, 24 * 7), user: publicUser(u) };
   }
   if (a === "login") {
+    rate("login", 300, 600000);
     const email = str(b.email, 100).toLowerCase(); throttle(email);
     const u = dbRead("users.json").data.filter((x) => x.email === email)[0];
     if (!u || !same(hashPw(String(b.password || ""), u.salt), u.pw)) { throttle(email, true); throw new Error("Wrong email or password"); }
     throttle(email, false);
-    return { token: mkToken("u", u.id, 24 * 30), user: publicUser(u) };
+    return { token: mkToken("u", u.id, 24 * 7), user: publicUser(u) };
   }
   if (a === "me" || a === "saveAddress") {
     const uid = userFromToken(b.token); if (!uid) throw new Error("Please log in again");
@@ -239,7 +269,9 @@ function account(b) {
   }
   if (a === "adminLogin") {
     throttle("admin");
-    const P = props(), okE = same(str(b.email, 100).toLowerCase(), String(P.getProperty("ADMIN_EMAIL") || "").toLowerCase()), okP = same(String(b.password || ""), P.getProperty("ADMIN_PASSWORD") || "\u0000");
+    const P = props();
+    if (!P.getProperty("ADMIN_EMAIL") || !P.getProperty("ADMIN_PASSWORD")) throw new Error("Admin login is not configured");
+    const okE = same(str(b.email, 100).toLowerCase(), String(P.getProperty("ADMIN_EMAIL") || "").toLowerCase()), okP = same(String(b.password || ""), P.getProperty("ADMIN_PASSWORD") || "\u0000");
     if (!(okE && okP)) { throttle("admin", true); throw new Error("Wrong email or password"); }
     throttle("admin", false);
     return { token: mkToken("a", "admin", 12), ghToken: P.getProperty("GH_TOKEN_SITE") };

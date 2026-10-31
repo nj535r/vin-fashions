@@ -1,6 +1,8 @@
 /* VIN Fashions – shared storefront code: helpers, cart, API (live or demo), header/footer. */
 (function () {
   "use strict";
+  // anti-clickjacking (GitHub Pages cannot send X-Frame-Options): refuse to run inside someone else's frame
+  if (window.top !== window.self) { try { window.top.location = window.self.location; } catch (e) { document.documentElement.style.display = "none"; } }
   const CFG = window.VIN_CONFIG;
   const DEMO = !CFG.API;
   const $ = (s, r = document) => r.querySelector(s);
@@ -44,7 +46,10 @@
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380"><rect width="300" height="380" fill="#f5efec"/>${g}</svg>`;
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
-  const imgOf = (p, hex) => p.image || art(p.category, hex || (p.colors && p.colors[0] && p.colors[0].h));
+  // only our own /img/ files are accepted as photos (blocks external or script-ish URLs smuggled into the catalogue)
+  const safeImage = (v) => (/^img\/[\w.\-]{1,120}$/.test(String(v || "")) ? v : "");
+  const safeColor = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || "")) ? v : "#cccccc");
+  const imgOf = (p, hex) => safeImage(p.image) || art(p.category, hex || (p.colors && p.colors[0] && p.colors[0].h));
 
   /* ---------- cart ---------- */
   const Cart = {
@@ -157,5 +162,5 @@
     updateBadge();
   }
 
-  window.VIN = { Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
+  window.VIN = { safeImage, safeColor, Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
 })();

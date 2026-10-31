@@ -1,0 +1,36 @@
+(async function(){
+  const {$,$$,esc,API,card,chrome,money,Cart,imgOf}=VIN;
+  chrome("shop");
+  const id=new URLSearchParams(location.search).get("id");
+  let all=[];
+  try{ all=await API.products(); }catch(e){}
+  const p=all.find(x=>x.id===id);
+  if(!p){ $("#pdp").innerHTML='<div class="empty"><h1>Product not found</h1><p><a class="btn" href="shop.html">Back to shop</a></p></div>'; return; }
+  document.title=p.name+" – VIN Fashions";
+  const off=p.mrp>p.price?Math.round((1-p.price/p.mrp)*100):0, inStock=p.stock>0;
+  let size=(p.sizes||[])[0]||"", color=(p.colors||[])[0]?p.colors[0].n:"", qty=1;
+  $("#pdp").innerHTML=`<div class="crumbs"><a href="index.html">Home</a> / <a href="shop.html?cat=${encodeURIComponent(p.category)}">${esc(p.category)}</a> / ${esc(p.name)}</div>
+  <div class="pdp">
+    <div class="im"><img id="pim" src="${esc(imgOf(p))}" alt="${esc(p.name)}" width="600" height="750"></div>
+    <div>
+      <h1>${esc(p.name)}</h1>
+      <p class="price"><b style="font-size:1.5rem">${money(p.price)}</b>${off?`<s>${money(p.mrp)}</s><span class="off">${off}% off</span>`:""}</p>
+      <p class="muted" style="margin-top:-6px">Inclusive of all taxes. ${p.price>=VIN.CFG.FREE_SHIPPING_ABOVE?"Free shipping.":"Free shipping above "+money(VIN.CFG.FREE_SHIPPING_ABOVE)+"."}</p>
+      ${(p.colors||[]).length?`<div class="opt"><b>Colour: <span id="cn">${esc(color)}</span></b><div class="chips" id="cols">${p.colors.map((c,i)=>`<button class="sw" type="button" data-c="${esc(c.n)}" data-h="${esc(c.h)}" title="${esc(c.n)}" aria-label="${esc(c.n)}" aria-pressed="${i===0}" style="background:${VIN.safeColor(c.h)}"></button>`).join("")}</div></div>`:""}
+      ${(p.sizes||[]).length?`<div class="opt"><b>Size</b><div class="chips" id="sizes">${p.sizes.map((s,i)=>`<button class="chip" type="button" data-s="${esc(s)}" aria-pressed="${i===0}">${esc(s)}</button>`).join("")}</div></div>`:""}
+      <div class="opt"><b>Quantity</b><div class="qty"><button type="button" id="mi" aria-label="Decrease">−</button><span id="qv" aria-live="polite">1</span><button type="button" id="pl" aria-label="Increase">+</button></div></div>
+      <p>${inStock?(p.stock<=5?`<span style="color:var(--err)">Only ${p.stock} left</span>`:'<span style="color:var(--ok)">In stock</span>'):'<span style="color:var(--err)">Sold out</span>'}</p>
+      <p><button class="btn accent" id="add"${inStock?"":" disabled"}>Add to bag</button> <a class="btn ghost" href="cart.html">View bag</a></p>
+      <div id="note" role="status"></div>
+      <h2 style="font-size:1.1rem;margin-top:28px">Details</h2>
+      <p>${esc(p.desc||"")}</p>
+    </div></div>`;
+  const pick=(box,attr,fn)=>{ const el=$(box); if(el) el.addEventListener("click",e=>{const b=e.target.closest("["+attr+"]"); if(!b) return; $$("["+attr+"]",el).forEach(x=>x.setAttribute("aria-pressed",x===b)); fn(b);}); };
+  pick("#cols","data-c",b=>{color=b.dataset.c;$("#cn").textContent=color;if(!p.image)$("#pim").src=VIN.art(p.category,b.dataset.h);});
+  pick("#sizes","data-s",b=>{size=b.dataset.s;});
+  const q=()=>$("#qv").textContent=qty;
+  $("#mi").onclick=()=>{qty=Math.max(1,qty-1);q();}; $("#pl").onclick=()=>{qty=Math.min(Math.min(10,p.stock||10),qty+1);q();};
+  $("#add").onclick=()=>{Cart.add(p.id,size,color,qty);$("#note").innerHTML='<div class="msg ok">Added to your bag. <a href="cart.html"><b>Checkout →</b></a></div>';};
+  const rel=all.filter(x=>x.category===p.category&&x.id!==p.id).slice(0,4);
+  if(rel.length){ $("#rel").hidden=false; $("#relGrid").innerHTML=rel.map(card).join(""); }
+})();

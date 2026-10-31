@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://api.github.com; form-action 'self' https://*.payu.in https://*.payu.com https://*.payumoney.com; base-uri 'none'; object-src 'none'; manifest-src 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Policies &amp; contact – VIN Fashions</title>
 <link rel="icon" href="assets/logo.svg">
@@ -31,11 +33,6 @@
 </article></main>
 <div id="ftr"></div>
 <script src="js/config.js"></script><script src="js/app.js"></script>
-<script>
-VIN.chrome("contact");
-const {$,CFG,money}=VIN;
-$("#fs").textContent=money(CFG.FREE_SHIPPING_ABOVE);$("#sf").textContent=money(CFG.SHIPPING_FEE);
-$("#cdet").append(CFG.CONTACT.address,document.createElement("br"),"Email: "+CFG.CONTACT.email,document.createElement("br"),"Phone: "+CFG.CONTACT.phone,document.createElement("br"),"Hours: "+CFG.CONTACT.hours);
-</script>
+<script src="js/pages/policies.js"></script>
 </body>
 </html>
