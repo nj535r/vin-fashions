@@ -1,0 +1,337 @@
+[
+ {
+  "id": "n1",
+  "name": "Rose Cotton Nightie",
+  "category": "Nighties",
+  "price": 549,
+  "mrp": 799,
+  "sizes": [
+   "Free Size"
+  ],
+  "colors": [
+   {
+    "n": "Rose",
+    "h": "#e8a0b0"
+   },
+   {
+    "n": "Maroon",
+    "h": "#9f1239"
+   }
+  ],
+  "stock": 25,
+  "desc": "Soft breathable cotton nighty with a relaxed fit and lace-trimmed neckline.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "n2",
+  "name": "Floral Maxi Nighty",
+  "category": "Nighties",
+  "price": 699,
+  "mrp": 999,
+  "sizes": [
+   "Free Size"
+  ],
+  "colors": [
+   {
+    "n": "Teal",
+    "h": "#2a9d8f"
+   },
+   {
+    "n": "Navy",
+    "h": "#1e3a5f"
+   }
+  ],
+  "stock": 18,
+  "desc": "Full-length printed maxi nighty with side pockets.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "n3",
+  "name": "Satin Night Gown",
+  "category": "Nighties",
+  "price": 1099,
+  "mrp": 1499,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Wine",
+    "h": "#722f37"
+   },
+   {
+    "n": "Black",
+    "h": "#1a1a1a"
+   }
+  ],
+  "stock": 12,
+  "desc": "Smooth satin gown with adjustable straps and lace hem.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "n4",
+  "name": "Feeding Nighty with Zip",
+  "category": "Nighties",
+  "price": 749,
+  "mrp": 999,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Sky",
+    "h": "#8ecae6"
+   },
+   {
+    "n": "Peach",
+    "h": "#f4a98c"
+   }
+  ],
+  "stock": 10,
+  "desc": "Front-zip nighty designed for easy feeding and everyday comfort.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "k1",
+  "name": "Straight Cotton Kurti",
+  "category": "Kurtis",
+  "price": 799,
+  "mrp": 1199,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Mustard",
+    "h": "#d4a017"
+   },
+   {
+    "n": "Green",
+    "h": "#3a7d44"
+   }
+  ],
+  "stock": 30,
+  "desc": "Everyday straight-cut kurti in pure cotton.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "k2",
+  "name": "Anarkali Printed Kurti",
+  "category": "Kurtis",
+  "price": 1299,
+  "mrp": 1799,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Indigo",
+    "h": "#3f4a8a"
+   },
+   {
+    "n": "Red",
+    "h": "#c1272d"
+   }
+  ],
+  "stock": 14,
+  "desc": "Flared Anarkali kurti with block print and three-quarter sleeves.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "s1",
+  "name": "Soft Cotton Saree",
+  "category": "Sarees",
+  "price": 1499,
+  "mrp": 2199,
+  "sizes": [
+   "Free Size"
+  ],
+  "colors": [
+   {
+    "n": "Maroon",
+    "h": "#8b1d2c"
+   },
+   {
+    "n": "Bottle Green",
+    "h": "#14532d"
+   }
+  ],
+  "stock": 9,
+  "desc": "Lightweight cotton saree with woven border. Blouse piece included.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "s2",
+  "name": "Chanderi Silk Saree",
+  "category": "Sarees",
+  "price": 2499,
+  "mrp": 3299,
+  "sizes": [
+   "Free Size"
+  ],
+  "colors": [
+   {
+    "n": "Gold",
+    "h": "#b8860b"
+   },
+   {
+    "n": "Pink",
+    "h": "#d6537a"
+   }
+  ],
+  "stock": 6,
+  "desc": "Chanderi silk blend saree with zari border.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "w1",
+  "name": "Relaxed Linen Top",
+  "category": "Western Wear",
+  "price": 899,
+  "mrp": 1299,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "White",
+    "h": "#f1ede4"
+   },
+   {
+    "n": "Olive",
+    "h": "#6b705c"
+   }
+  ],
+  "stock": 22,
+  "desc": "Boxy linen-blend top for warm days.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "l1",
+  "name": "Cotton Lounge Set",
+  "category": "Lounge Wear",
+  "price": 1199,
+  "mrp": 1599,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Grey",
+    "h": "#9aa0a6"
+   },
+   {
+    "n": "Lilac",
+    "h": "#b5a3d6"
+   }
+  ],
+  "stock": 16,
+  "desc": "Matching top and pyjama set in brushed cotton.",
+  "featured": true,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "c1",
+  "name": "Girls Frock Dress",
+  "category": "Kids",
+  "price": 649,
+  "mrp": 899,
+  "sizes": [
+   "2-3Y",
+   "4-5Y",
+   "6-7Y"
+  ],
+  "colors": [
+   {
+    "n": "Yellow",
+    "h": "#f2c94c"
+   },
+   {
+    "n": "Pink",
+    "h": "#f48fb1"
+   }
+  ],
+  "stock": 20,
+  "desc": "Cotton frock with soft inner lining.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ },
+ {
+  "id": "m1",
+  "name": "Men's Check Shirt",
+  "category": "Men",
+  "price": 999,
+  "mrp": 1399,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL"
+  ],
+  "colors": [
+   {
+    "n": "Blue",
+    "h": "#3b6ea5"
+   },
+   {
+    "n": "Maroon",
+    "h": "#7a1f2b"
+   }
+  ],
+  "stock": 24,
+  "desc": "Full-sleeve check shirt in easy-iron cotton.",
+  "featured": false,
+  "active": true,
+  "image": "",
+  "createdAt": 1793467673989
+ }
+]

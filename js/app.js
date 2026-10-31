@@ -72,69 +72,36 @@
     return { lines, subtotal, shipping, total: subtotal + shipping };
   }
 
-  /* ---------- API: live (Cloudflare Worker) or demo (localStorage) ---------- */
-  let adminToken = (function () { try { return sessionStorage.getItem("vin_admin") || ""; } catch (e) { return ""; } })();
-  async function http(path, opts) {
-    opts = opts || {};
-    const h = { "Content-Type": "application/json" };
-    if (adminToken && path.indexOf("/api/admin") === 0) h.Authorization = "Bearer " + adminToken;
-    const r = await fetch(CFG.API + path, { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { const e = new Error(j.error || "Request failed"); e.status = r.status; throw e; }
+  /* ---------- data: catalogue = products.json in the repo; payments = Google Apps Script web app ---------- */
+  const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+  async function script(path, body) {
+    // text/plain keeps this a "simple" request (no CORS preflight); Apps Script redirects, fetch follows it
+    const r = await fetch(CFG.API + (path || ""), body ? { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(body) } : {});
+    const j = await r.json().catch(() => ({ error: "Unexpected reply from the payment service" }));
+    if (j.error) throw new Error(j.error);
     return j;
   }
-  const demoProducts = () => LS.get("vin_products", null) || (LS.set("vin_products", window.VIN_SEED), window.VIN_SEED);
-  const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
-
   const API = {
     DEMO,
     async products() {
-      if (DEMO) return demoProducts().filter((p) => p.active !== false);
-      return (await http("/api/products")).products;
-    },
-    async adminProducts() { return DEMO ? demoProducts() : (await http("/api/admin/products")).products; },
-    async login(pw) {
-      if (DEMO) { if (pw !== "admin") throw new Error("Demo mode password is: admin"); adminToken = "demo"; }
-      else adminToken = (await http("/api/admin/login", { method: "POST", body: { password: pw } })).token;
-      try { sessionStorage.setItem("vin_admin", adminToken); } catch (e) {}
-    },
-    logout() { adminToken = ""; try { sessionStorage.removeItem("vin_admin"); } catch (e) {} },
-    hasToken() { return !!adminToken; },
-    async saveProduct(p) {
-      if (DEMO) {
-        const a = demoProducts(), i = a.findIndex((x) => x.id === p.id);
-        const rec = { ...p, image: p.imageData || p.image || "", createdAt: p.createdAt || Date.now() }; delete rec.imageData;
-        if (!rec.id) rec.id = "p" + uid();
-        if (i >= 0) a[i] = rec; else a.unshift(rec);
-        LS.set("vin_products", a); return rec;
-      }
-      return (await http("/api/admin/products" + (p.id ? "/" + encodeURIComponent(p.id) : ""), { method: p.id ? "PUT" : "POST", body: p })).product;
-    },
-    async deleteProduct(id) {
-      if (DEMO) { LS.set("vin_products", demoProducts().filter((p) => p.id !== id)); return; }
-      await http("/api/admin/products/" + encodeURIComponent(id), { method: "DELETE" });
-    },
-    async orders() { return DEMO ? LS.get("vin_orders", []) : (await http("/api/admin/orders")).orders; },
-    async setOrderStatus(id, status) {
-      if (DEMO) { const a = LS.get("vin_orders", []); const o = a.find((x) => x.id === id); if (o) o.fulfilment = status; LS.set("vin_orders", a); return; }
-      await http("/api/admin/orders/" + encodeURIComponent(id), { method: "PATCH", body: { fulfilment: status } });
+      const r = await fetch("products.json?t=" + Math.floor(Date.now() / 60000));
+      if (!r.ok) throw new Error("Catalogue unavailable");
+      return (await r.json()).filter((p) => p.active !== false);
     },
     /* Returns {demo:true,id} or {id, action, fields} – fields must be POSTed to PayU. */
     async checkout(items, customer) {
       if (DEMO) {
-        const pr = priceCart(items, demoProducts());
+        const pr = priceCart(items, await API.products());
         if (!pr.lines.length) throw new Error("Your bag is empty");
         const id = "VIN" + Date.now().toString(36).toUpperCase();
-        const a = LS.get("vin_orders", []);
-        a.unshift({ id, customer, items: pr.lines.map((l) => ({ id: l.id, name: l.p.name, size: l.size, color: l.color, qty: l.qty, price: l.p.price })), subtotal: pr.subtotal, shipping: pr.shipping, total: pr.total, status: "paid", fulfilment: "new", createdAt: Date.now(), demo: true });
-        LS.set("vin_orders", a);
+        LS.set("vin_demo_order", { id, status: "paid", total: pr.total });
         return { demo: true, id };
       }
-      return http("/api/orders", { method: "POST", body: { items: items.map((i) => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })), customer } });
+      return script("", { items: items.map((i) => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })), customer });
     },
     async orderStatus(id) {
-      if (DEMO) { const o = LS.get("vin_orders", []).find((x) => x.id === id); return o ? { id: o.id, status: o.status, total: o.total } : null; }
-      try { return await http("/api/orders/" + encodeURIComponent(id)); } catch (e) { return null; }
+      if (DEMO) { const o = LS.get("vin_demo_order", null); return o && o.id === id ? o : null; }
+      try { return await script("?id=" + encodeURIComponent(id)); } catch (e) { return null; }
     }
   };
 

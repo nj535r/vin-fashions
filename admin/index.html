@@ -12,26 +12,17 @@
 <header class="site"><div class="wrap bar"><a class="logo" href="../index.html"><img src="../assets/logo.svg" alt="VIN Fashions"></a><span style="flex:1"></span><strong>Admin</strong><button class="btn ghost sm" id="out" hidden>Log out</button></div></header>
 
 <main class="wrap adm" id="main">
-  <section id="login" style="max-width:380px;margin:40px auto" hidden>
+  <section id="login" style="max-width:460px;margin:40px auto" hidden>
     <h1 style="font-size:1.5rem">Admin login</h1>
-    <form id="lf"><div class="fld"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <p class="muted">Paste your GitHub access token (only you have it). It stays in this browser tab and is sent only to github.com. See README, “Admin token”, to create one.</p>
+    <form id="lf"><div class="fld"><label for="pw">GitHub token</label><input id="pw" type="password" autocomplete="off" required placeholder="github_pat_…"></div>
     <div id="lerr" role="alert"></div><button class="btn" style="width:100%">Log in</button></form>
-    <p class="muted" id="lhint"></p>
   </section>
 
   <section id="app" hidden>
-    <div id="demoNote"></div>
-    <div class="tabs" role="tablist"><button role="tab" id="t1" aria-selected="true">Products</button><button role="tab" id="t2" aria-selected="false">Orders</button></div>
-
-    <div id="p1">
-      <div class="sec-h"><h2 style="margin:0">Products <span class="muted" id="pc"></span></h2><button class="btn accent" id="addp">+ Add clothing</button></div>
-      <div class="tw"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div>
-    </div>
-
-    <div id="p2" hidden>
-      <div class="sec-h"><h2 style="margin:0">Orders</h2><button class="btn ghost sm" id="refresh">Refresh</button></div>
-      <div class="tw"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Fulfilment</th></tr></thead><tbody id="otb"></tbody></table></div>
-    </div>
+    <div class="msg info">Changes are saved to the website’s GitHub repository and go live about a minute after saving. Orders arrive by e-mail. Set <b>Stock</b> to 0 when an item sells out.</div>
+    <div class="sec-h"><h2 style="margin:0">Products <span class="muted" id="pc"></span></h2><button class="btn accent" id="addp">+ Add clothing</button></div>
+    <div class="tw"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div>
   </section>
 </main>
 
@@ -59,49 +50,52 @@
   </form>
 </dialog>
 
-<script src="../js/config.js"></script><script src="../js/seed.js"></script><script src="../js/app.js"></script>
+<script src="../js/config.js"></script><script src="../js/app.js"></script>
 <script>
 (function(){
-  const {$,$$,esc,money,API,CFG,uid}=VIN;
-  const show=()=>{ const in_=API.hasToken(); $("#login").hidden=in_; $("#app").hidden=!in_; $("#out").hidden=!in_; if(in_) loadAll(); };
-  $("#lhint").textContent=API.DEMO?"Demo mode – the password is: admin":"";
-  $("#demoNote").innerHTML=API.DEMO?'<div class="msg info">Demo mode: products and orders are stored only in this browser. Deploy the backend (README) and set <code>API</code> in js/config.js to share them with all visitors.</div>':"";
-  $("#lf").addEventListener("submit",async e=>{e.preventDefault();try{await API.login($("#pw").value);$("#pw").value="";show();}catch(x){$("#lerr").innerHTML='<div class="msg err"></div>';$("#lerr").firstChild.textContent=x.message;}});
-  $("#out").onclick=()=>{API.logout();show();};
-  const tab=n=>{[1,2].forEach(i=>{$("#p"+i).hidden=i!==n;$("#t"+i).setAttribute("aria-selected",i===n);});if(n===2)loadOrders();};
-  $("#t1").onclick=()=>tab(1);$("#t2").onclick=()=>tab(2);$("#refresh").onclick=loadOrders;
-
-  let products=[];
-  const authFail=(e)=>{ if(e.status===401){API.logout();show();return true;} };
-  async function loadAll(){ await loadProducts(); }
-  async function loadProducts(){
-    try{products=await API.adminProducts();}catch(e){ if(!authFail(e)) alert(e.message); return; }
+  const {$,esc,money,CFG,uid}=VIN, GH=CFG.GITHUB;
+  let token=""; try{token=sessionStorage.getItem("vin_gh")||"";}catch(e){}
+  let products=[], sha="";
+  const img=p=>p.image?"../"+p.image:VIN.imgOf(p);
+  const b64=t=>btoa(unescape(encodeURIComponent(t)));
+  async function gh(path,opt){
+    opt=opt||{};
+    const r=await fetch("https://api.github.com/repos/"+GH.repo+path,{method:opt.method||"GET",headers:Object.assign({Accept:"application/vnd.github+json",Authorization:"Bearer "+token},opt.body?{"Content-Type":"application/json"}:{}),body:opt.body?JSON.stringify(opt.body):undefined});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){const e=new Error(j.message||("GitHub error "+r.status));e.status=r.status;throw e;}
+    return j;
+  }
+  const bad=(box,m)=>{box.innerHTML='<div class="msg err"></div>';box.firstChild.textContent=m;};
+  const show=()=>{ $("#login").hidden=!!token; $("#app").hidden=!token; $("#out").hidden=!token; if(token) load(); };
+  function logout(){token="";try{sessionStorage.removeItem("vin_gh");}catch(e){}show();}
+  async function load(){
+    try{
+      const j=await gh("/contents/products.json?ref="+GH.branch+"&t="+Date.now());
+      sha=j.sha; products=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));
+    }catch(e){ if(e.status===401||e.status===403||e.status===404){logout();bad($("#lerr"),"GitHub rejected this token (it needs Contents: read & write on "+GH.repo+").");} else alert(e.message); return; }
+    draw();
+  }
+  async function commit(msg){
+    const j=await gh("/contents/products.json",{method:"PUT",body:{message:msg,content:b64(JSON.stringify(products,null,1)),sha,branch:GH.branch}});
+    sha=j.content.sha;
+  }
+  async function guarded(fn){ try{await fn();}catch(e){ if(e.status===409){alert("The catalogue changed elsewhere. Reloading – please repeat your change.");await load();} else alert(e.message); } }
+  $("#lf").addEventListener("submit",e=>{e.preventDefault();token=$("#pw").value.trim();$("#pw").value="";try{sessionStorage.setItem("vin_gh",token);}catch(x){} $("#lerr").innerHTML="";show();});
+  $("#out").onclick=logout;
+  function draw(){
     $("#pc").textContent="("+products.length+")";
     $("#ptb").innerHTML=products.map(p=>`<tr>
-      <td><img src="${esc(VIN.imgOf(p))}" alt=""></td><td><b>${esc(p.name)}</b>${p.featured?' <span class="pill">Featured</span>':""}</td><td>${esc(p.category)}</td>
-      <td>${money(p.price)}${p.mrp>p.price?` <s class="muted">${money(p.mrp)}</s>`:""}</td><td>${p.stock}</td>
+      <td><img src="${esc(img(p))}" alt=""></td><td><b>${esc(p.name)}</b>${p.featured?' <span class="pill">Featured</span>':""}</td><td>${esc(p.category)}</td>
+      <td>${money(p.price)}${p.mrp>p.price?` <s class="muted">${money(p.mrp)}</s>`:""}</td><td>${esc(p.stock)}</td>
       <td>${p.active===false?'<span class="pill">Hidden</span>':'<span class="pill paid">Live</span>'}</td>
       <td style="white-space:nowrap"><button class="btn sm ghost" data-e="${esc(p.id)}">Edit</button> <button class="btn sm danger" data-x="${esc(p.id)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="7" class="muted">No products yet – click “Add clothing”.</td></tr>';
   }
-  $("#ptb").addEventListener("click",async e=>{
+  $("#ptb").addEventListener("click",e=>{
     const ed=e.target.closest("[data-e]"),dl=e.target.closest("[data-x]");
     if(ed) openForm(products.find(p=>p.id===ed.dataset.e));
-    if(dl&&confirm("Delete this product permanently?")){ try{await API.deleteProduct(dl.dataset.x);loadProducts();}catch(x){alert(x.message);} }
+    if(dl&&confirm("Delete this product permanently?")) guarded(async()=>{ products=products.filter(p=>p.id!==dl.dataset.x); draw(); await commit("Delete product"); });
   });
 
-  async function loadOrders(){
-    let os=[]; try{os=await API.orders();}catch(e){ if(!authFail(e)) alert(e.message); return; }
-    os.sort((a,b)=>b.createdAt-a.createdAt);
-    const F=["new","packed","shipped","delivered","cancelled"];
-    $("#otb").innerHTML=os.map(o=>`<tr><td><b>${esc(o.id)}</b></td><td>${new Date(o.createdAt).toLocaleString("en-IN")}</td>
-      <td>${esc(o.customer.name)}<br><span class="muted">${esc(o.customer.phone)} · ${esc(o.customer.email)}</span><br><span class="muted">${esc(o.customer.address)}, ${esc(o.customer.city)}, ${esc(o.customer.state)} ${esc(o.customer.pincode)}</span></td>
-      <td>${o.items.map(i=>`${esc(i.name)} (${esc([i.color,i.size].filter(Boolean).join("/"))}) × ${i.qty}`).join("<br>")}</td>
-      <td>${money(o.total)}</td><td><span class="pill ${esc(o.status)}">${esc(o.status)}</span></td>
-      <td>${o.status==="paid"?`<select data-o="${esc(o.id)}" aria-label="Fulfilment for ${esc(o.id)}">${F.map(f=>`<option${f===o.fulfilment?" selected":""}>${f}</option>`).join("")}</select>`:"–"}</td></tr>`).join("")||'<tr><td colspan="7" class="muted">No orders yet.</td></tr>';
-  }
-  $("#otb").addEventListener("change",async e=>{const s=e.target.closest("[data-o]");if(s){try{await API.setOrderStatus(s.dataset.o,s.value);}catch(x){alert(x.message);}}});
-
-  /* ----- product form ----- */
   let editing=null, imageData="", clearImg=false;
   const dlg=$("#dlg");
   function fillCats(sel){ const cats=[...new Set([...CFG.CATEGORIES,...products.map(p=>p.category)])]; $("#f_cat").innerHTML=cats.map(c=>`<option${c===sel?" selected":""}>${esc(c)}</option>`).join(""); }
@@ -114,35 +108,37 @@
     $("#f_stock").value=p?p.stock:10; $("#f_sizes").value=p?(p.sizes||[]).join(", "):"S, M, L, XL";
     $("#f_colors").value=p?(p.colors||[]).map(c=>c.n+":"+c.h).join(", "):""; $("#f_desc").value=p?p.desc||"":"";
     $("#f_feat").checked=!!(p&&p.featured); $("#f_act").checked=p?p.active!==false:true; $("#f_file").value="";
-    preview(p&&p.image); dlg.showModal();
+    preview(p&&p.image?"../"+p.image:""); dlg.showModal();
   }
   $("#addp").onclick=()=>openForm(null); $("#cancel").onclick=()=>dlg.close();
   $("#f_clear").onclick=()=>{imageData="";clearImg=true;$("#f_file").value="";preview("");};
   $("#f_file").addEventListener("change",e=>{
     const f=e.target.files[0]; if(!f) return;
     if(!/^image\//.test(f.type)) return alert("Please choose an image file.");
-    const img=new Image(), url=URL.createObjectURL(f);
-    img.onload=()=>{ const m=720, s=Math.min(1,m/Math.max(img.width,img.height)), c=document.createElement("canvas");
-      c.width=Math.round(img.width*s);c.height=Math.round(img.height*s); c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-      imageData=c.toDataURL("image/jpeg",0.82); clearImg=false; preview(imageData); URL.revokeObjectURL(url); };
-    img.onerror=()=>alert("Could not read that image."); img.src=url;
+    const im=new Image(), url=URL.createObjectURL(f);
+    im.onload=()=>{ const s=Math.min(1,800/Math.max(im.width,im.height)), c=document.createElement("canvas");
+      c.width=Math.round(im.width*s);c.height=Math.round(im.height*s); c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+      imageData=c.toDataURL("image/jpeg",0.85); clearImg=false; preview(imageData); URL.revokeObjectURL(url); };
+    im.onerror=()=>alert("Could not read that image."); im.src=url;
   });
-  function parseColors(s){
-    return s.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{ const [n,h]=x.split(":").map(t=>t.trim()); return {n,h:(h||"").startsWith("#")?h:"#"+h}; });
-  }
-  $("#pf").addEventListener("submit",async e=>{
+  const parseColors=s=>s.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{ const [n,h]=x.split(":").map(t=>t.trim()); return {n,h:(h||"").startsWith("#")?h:"#"+h}; });
+  $("#pf").addEventListener("submit",e=>{
     e.preventDefault();
-    const err=m=>{$("#ferr").innerHTML='<div class="msg err"></div>';$("#ferr").firstChild.textContent=m;};
+    const err=m=>bad($("#ferr"),m);
     const name=$("#f_name").value.trim(), price=Math.round(+$("#f_price").value), mrp=Math.round(+$("#f_mrp").value)||0, stock=Math.round(+$("#f_stock").value);
     const category=$("#f_newcat").value.trim()||$("#f_cat").value, colors=parseColors($("#f_colors").value);
     if(name.length<2) return err("Name is required."); if(!(price>0)) return err("Enter a selling price."); if(mrp&&mrp<price) return err("MRP must be at least the selling price.");
     if(!(stock>=0)) return err("Stock cannot be negative."); if(colors.some(c=>!c.n||!/^#[0-9a-f]{6}$/i.test(c.h))) return err("Colours must look like Rose:#e8a0b0");
-    const rec={ id:editing?editing.id:"", name, category, price, mrp:mrp||price, stock, sizes:$("#f_sizes").value.split(",").map(s=>s.trim()).filter(Boolean), colors,
+    const id=editing?editing.id:"p"+uid();
+    const rec={ id, name, category, price, mrp:mrp||price, stock, sizes:$("#f_sizes").value.split(",").map(s=>s.trim()).filter(Boolean), colors,
       desc:$("#f_desc").value.trim(), featured:$("#f_feat").checked, active:$("#f_act").checked, image:clearImg?"":(editing?editing.image||"":""), createdAt:editing?editing.createdAt:Date.now() };
-    if(imageData) rec.imageData=imageData;
-    const b=$("#save"); b.disabled=true;
-    try{ await API.saveProduct(rec); dlg.close(); loadProducts(); }catch(x){ if(!authFail(x)) err(x.message); }
-    b.disabled=false;
+    const b=$("#save"); b.disabled=true; b.textContent="Saving…";
+    guarded(async()=>{
+      if(imageData){ const path="img/"+id+"-"+Date.now().toString(36)+".jpg";
+        await gh("/contents/"+path,{method:"PUT",body:{message:"Add photo for "+name,content:imageData.split(",")[1],branch:GH.branch}}); rec.image=path; }
+      const i=products.findIndex(p=>p.id===id); if(i>=0) products[i]=rec; else products.unshift(rec);
+      await commit((editing?"Update ":"Add ")+name); draw(); dlg.close();
+    }).finally(()=>{b.disabled=false;b.textContent="Save";});
   });
   show();
 })();
