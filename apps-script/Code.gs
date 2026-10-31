@@ -253,5 +253,5 @@ function account(b) {
 function authorize() {
   UrlFetchApp.fetch(CFG.SITE);
   GmailApp.getInboxUnreadCount();
-  const ss = SpreadsheetApp.create("VIN permission check"); DriveApp.getFileById(ss.getId()).setTrashed(true);
+  try { SpreadsheetApp.openById("permission-check"); } catch (e) { /* expected: only here so Google asks for Sheets access */ }
 }
