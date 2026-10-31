@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Policies &amp; contact – VIN Fashions</title>
+<link rel="icon" href="assets/logo.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="hdr"></div>
+<main id="main" class="wrap"><article class="prose">
+  <h1>Policies &amp; contact</h1>
+  <p class="msg info">Draft wording for a small online clothing shop. Review it, fill in your legal business name and details, and have it checked before going live. PayU asks for these pages during merchant approval.</p>
+
+  <h2 id="contact">Contact us</h2>
+  <p id="cdet"></p>
+
+  <h2 id="shipping">Shipping</h2>
+  <p>We ship across India. Orders are packed within 1–2 working days and usually arrive in 4–8 working days. Shipping is free above <span id="fs"></span>; otherwise a flat fee of <span id="sf"></span> applies. You will get an email when your order ships.</p>
+
+  <h2 id="returns">Returns, exchanges &amp; refunds</h2>
+  <p>If the size does not fit or the item is damaged or different from what you ordered, tell us within 7 days of delivery and we will exchange it or refund you. Items must be unused, unwashed and in original packaging. Nighties and innerwear can be returned only if sealed and unopened, for hygiene reasons.</p>
+  <p>Approved refunds go back to the original payment method within 5–7 working days of us receiving the item.</p>
+
+  <h2 id="terms">Terms of use</h2>
+  <p>Prices are in Indian Rupees and include applicable taxes. Product colours may look slightly different on your screen. We may cancel an order if an item is out of stock or a price was listed in error, and will refund any payment in full.</p>
+
+  <h2 id="privacy">Privacy</h2>
+  <p>We collect your name, email, phone and delivery address only to process and deliver your order and to contact you about it. Card, UPI and bank details are entered on PayU’s secure page and never reach our servers. We do not sell your data. To have your data deleted, email us.</p>
+</article></main>
+<div id="ftr"></div>
+<script src="js/config.js"></script><script src="js/seed.js"></script><script src="js/app.js"></script>
+<script>
+VIN.chrome("contact");
+const {$,CFG,money}=VIN;
+$("#fs").textContent=money(CFG.FREE_SHIPPING_ABOVE);$("#sf").textContent=money(CFG.SHIPPING_FEE);
+$("#cdet").append(CFG.CONTACT.address,document.createElement("br"),"Email: "+CFG.CONTACT.email,document.createElement("br"),"Phone: "+CFG.CONTACT.phone,document.createElement("br"),"Hours: "+CFG.CONTACT.hours);
+</script>
+</body>
+</html>

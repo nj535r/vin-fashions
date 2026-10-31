@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin – VIN Fashions</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="../assets/logo.svg">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<header class="site"><div class="wrap bar"><a class="logo" href="../index.html"><img src="../assets/logo.svg" alt="VIN Fashions"></a><span style="flex:1"></span><strong>Admin</strong><button class="btn ghost sm" id="out" hidden>Log out</button></div></header>
+
+<main class="wrap adm" id="main">
+  <section id="login" style="max-width:380px;margin:40px auto" hidden>
+    <h1 style="font-size:1.5rem">Admin login</h1>
+    <form id="lf"><div class="fld"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <div id="lerr" role="alert"></div><button class="btn" style="width:100%">Log in</button></form>
+    <p class="muted" id="lhint"></p>
+  </section>
+
+  <section id="app" hidden>
+    <div id="demoNote"></div>
+    <div class="tabs" role="tablist"><button role="tab" id="t1" aria-selected="true">Products</button><button role="tab" id="t2" aria-selected="false">Orders</button></div>
+
+    <div id="p1">
+      <div class="sec-h"><h2 style="margin:0">Products <span class="muted" id="pc"></span></h2><button class="btn accent" id="addp">+ Add clothing</button></div>
+      <div class="tw"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div>
+    </div>
+
+    <div id="p2" hidden>
+      <div class="sec-h"><h2 style="margin:0">Orders</h2><button class="btn ghost sm" id="refresh">Refresh</button></div>
+      <div class="tw"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Fulfilment</th></tr></thead><tbody id="otb"></tbody></table></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg" aria-labelledby="dt">
+  <form id="pf" method="dialog" novalidate>
+    <h2 id="dt">Add clothing</h2>
+    <div class="fgrid">
+      <div class="fld full"><label for="f_name">Name</label><input id="f_name" required maxlength="120"></div>
+      <div class="fld"><label for="f_cat">Category</label><select id="f_cat"></select></div>
+      <div class="fld"><label for="f_newcat">…or new category</label><input id="f_newcat" maxlength="40" placeholder="optional"></div>
+      <div class="fld"><label for="f_price">Selling price (₹)</label><input id="f_price" type="number" min="1" step="1" required></div>
+      <div class="fld"><label for="f_mrp">MRP / original price (₹)</label><input id="f_mrp" type="number" min="1" step="1"></div>
+      <div class="fld"><label for="f_stock">Stock</label><input id="f_stock" type="number" min="0" step="1" value="10" required></div>
+      <div class="fld"><label for="f_sizes">Sizes (comma separated)</label><input id="f_sizes" placeholder="S, M, L, XL" maxlength="120"></div>
+      <div class="fld full"><label for="f_colors">Colours – name:#hex, comma separated</label><input id="f_colors" placeholder="Rose:#e8a0b0, Maroon:#9f1239" maxlength="300"></div>
+      <div class="fld full"><label for="f_desc">Description</label><textarea id="f_desc" rows="3" maxlength="1000"></textarea></div>
+      <div class="fld full"><label for="f_file">Photo (JPG/PNG – resized automatically)</label><input id="f_file" type="file" accept="image/*">
+        <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><img id="f_prev" alt="Photo preview" style="width:70px;height:88px;object-fit:cover;border:1px solid var(--line);border-radius:4px" hidden><button class="btn sm ghost" type="button" id="f_clear" hidden>Remove photo</button></div>
+        <span class="muted" style="font-size:.85rem">No photo? A coloured illustration is shown instead.</span></div>
+      <label class="fld"><input type="checkbox" id="f_feat"> Show on home page</label>
+      <label class="fld"><input type="checkbox" id="f_act" checked> Visible in shop</label>
+    </div>
+    <div id="ferr" role="alert"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn ghost" type="button" id="cancel">Cancel</button><button class="btn accent" type="submit" id="save">Save</button></div>
+  </form>
+</dialog>
+
+<script src="../js/config.js"></script><script src="../js/seed.js"></script><script src="../js/app.js"></script>
+<script>
+(function(){
+  const {$,$$,esc,money,API,CFG,uid}=VIN;
+  const show=()=>{ const in_=API.hasToken(); $("#login").hidden=in_; $("#app").hidden=!in_; $("#out").hidden=!in_; if(in_) loadAll(); };
+  $("#lhint").textContent=API.DEMO?"Demo mode – the password is: admin":"";
+  $("#demoNote").innerHTML=API.DEMO?'<div class="msg info">Demo mode: products and orders are stored only in this browser. Deploy the backend (README) and set <code>API</code> in js/config.js to share them with all visitors.</div>':"";
+  $("#lf").addEventListener("submit",async e=>{e.preventDefault();try{await API.login($("#pw").value);$("#pw").value="";show();}catch(x){$("#lerr").innerHTML='<div class="msg err"></div>';$("#lerr").firstChild.textContent=x.message;}});
+  $("#out").onclick=()=>{API.logout();show();};
+  const tab=n=>{[1,2].forEach(i=>{$("#p"+i).hidden=i!==n;$("#t"+i).setAttribute("aria-selected",i===n);});if(n===2)loadOrders();};
+  $("#t1").onclick=()=>tab(1);$("#t2").onclick=()=>tab(2);$("#refresh").onclick=loadOrders;
+
+  let products=[];
+  const authFail=(e)=>{ if(e.status===401){API.logout();show();return true;} };
+  async function loadAll(){ await loadProducts(); }
+  async function loadProducts(){
+    try{products=await API.adminProducts();}catch(e){ if(!authFail(e)) alert(e.message); return; }
+    $("#pc").textContent="("+products.length+")";
+    $("#ptb").innerHTML=products.map(p=>`<tr>
+      <td><img src="${esc(VIN.imgOf(p))}" alt=""></td><td><b>${esc(p.name)}</b>${p.featured?' <span class="pill">Featured</span>':""}</td><td>${esc(p.category)}</td>
+      <td>${money(p.price)}${p.mrp>p.price?` <s class="muted">${money(p.mrp)}</s>`:""}</td><td>${p.stock}</td>
+      <td>${p.active===false?'<span class="pill">Hidden</span>':'<span class="pill paid">Live</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn sm ghost" data-e="${esc(p.id)}">Edit</button> <button class="btn sm danger" data-x="${esc(p.id)}">Delete</button></td></tr>`).join("")||'<tr><td colspan="7" class="muted">No products yet – click “Add clothing”.</td></tr>';
+  }
+  $("#ptb").addEventListener("click",async e=>{
+    const ed=e.target.closest("[data-e]"),dl=e.target.closest("[data-x]");
+    if(ed) openForm(products.find(p=>p.id===ed.dataset.e));
+    if(dl&&confirm("Delete this product permanently?")){ try{await API.deleteProduct(dl.dataset.x);loadProducts();}catch(x){alert(x.message);} }
+  });
+
+  async function loadOrders(){
+    let os=[]; try{os=await API.orders();}catch(e){ if(!authFail(e)) alert(e.message); return; }
+    os.sort((a,b)=>b.createdAt-a.createdAt);
+    const F=["new","packed","shipped","delivered","cancelled"];
+    $("#otb").innerHTML=os.map(o=>`<tr><td><b>${esc(o.id)}</b></td><td>${new Date(o.createdAt).toLocaleString("en-IN")}</td>
+      <td>${esc(o.customer.name)}<br><span class="muted">${esc(o.customer.phone)} · ${esc(o.customer.email)}</span><br><span class="muted">${esc(o.customer.address)}, ${esc(o.customer.city)}, ${esc(o.customer.state)} ${esc(o.customer.pincode)}</span></td>
+      <td>${o.items.map(i=>`${esc(i.name)} (${esc([i.color,i.size].filter(Boolean).join("/"))}) × ${i.qty}`).join("<br>")}</td>
+      <td>${money(o.total)}</td><td><span class="pill ${esc(o.status)}">${esc(o.status)}</span></td>
+      <td>${o.status==="paid"?`<select data-o="${esc(o.id)}" aria-label="Fulfilment for ${esc(o.id)}">${F.map(f=>`<option${f===o.fulfilment?" selected":""}>${f}</option>`).join("")}</select>`:"–"}</td></tr>`).join("")||'<tr><td colspan="7" class="muted">No orders yet.</td></tr>';
+  }
+  $("#otb").addEventListener("change",async e=>{const s=e.target.closest("[data-o]");if(s){try{await API.setOrderStatus(s.dataset.o,s.value);}catch(x){alert(x.message);}}});
+
+  /* ----- product form ----- */
+  let editing=null, imageData="", clearImg=false;
+  const dlg=$("#dlg");
+  function fillCats(sel){ const cats=[...new Set([...CFG.CATEGORIES,...products.map(p=>p.category)])]; $("#f_cat").innerHTML=cats.map(c=>`<option${c===sel?" selected":""}>${esc(c)}</option>`).join(""); }
+  function preview(src){ const i=$("#f_prev"); i.hidden=!src; $("#f_clear").hidden=!src; if(src) i.src=src; }
+  function openForm(p){
+    editing=p||null; imageData=""; clearImg=false; $("#ferr").innerHTML="";
+    $("#dt").textContent=p?"Edit clothing":"Add clothing";
+    fillCats(p&&p.category);
+    $("#f_name").value=p?p.name:""; $("#f_newcat").value=""; $("#f_price").value=p?p.price:""; $("#f_mrp").value=p&&p.mrp?p.mrp:"";
+    $("#f_stock").value=p?p.stock:10; $("#f_sizes").value=p?(p.sizes||[]).join(", "):"S, M, L, XL";
+    $("#f_colors").value=p?(p.colors||[]).map(c=>c.n+":"+c.h).join(", "):""; $("#f_desc").value=p?p.desc||"":"";
+    $("#f_feat").checked=!!(p&&p.featured); $("#f_act").checked=p?p.active!==false:true; $("#f_file").value="";
+    preview(p&&p.image); dlg.showModal();
+  }
+  $("#addp").onclick=()=>openForm(null); $("#cancel").onclick=()=>dlg.close();
+  $("#f_clear").onclick=()=>{imageData="";clearImg=true;$("#f_file").value="";preview("");};
+  $("#f_file").addEventListener("change",e=>{
+    const f=e.target.files[0]; if(!f) return;
+    if(!/^image\//.test(f.type)) return alert("Please choose an image file.");
+    const img=new Image(), url=URL.createObjectURL(f);
+    img.onload=()=>{ const m=720, s=Math.min(1,m/Math.max(img.width,img.height)), c=document.createElement("canvas");
+      c.width=Math.round(img.width*s);c.height=Math.round(img.height*s); c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      imageData=c.toDataURL("image/jpeg",0.82); clearImg=false; preview(imageData); URL.revokeObjectURL(url); };
+    img.onerror=()=>alert("Could not read that image."); img.src=url;
+  });
+  function parseColors(s){
+    return s.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{ const [n,h]=x.split(":").map(t=>t.trim()); return {n,h:(h||"").startsWith("#")?h:"#"+h}; });
+  }
+  $("#pf").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const err=m=>{$("#ferr").innerHTML='<div class="msg err"></div>';$("#ferr").firstChild.textContent=m;};
+    const name=$("#f_name").value.trim(), price=Math.round(+$("#f_price").value), mrp=Math.round(+$("#f_mrp").value)||0, stock=Math.round(+$("#f_stock").value);
+    const category=$("#f_newcat").value.trim()||$("#f_cat").value, colors=parseColors($("#f_colors").value);
+    if(name.length<2) return err("Name is required."); if(!(price>0)) return err("Enter a selling price."); if(mrp&&mrp<price) return err("MRP must be at least the selling price.");
+    if(!(stock>=0)) return err("Stock cannot be negative."); if(colors.some(c=>!c.n||!/^#[0-9a-f]{6}$/i.test(c.h))) return err("Colours must look like Rose:#e8a0b0");
+    const rec={ id:editing?editing.id:"", name, category, price, mrp:mrp||price, stock, sizes:$("#f_sizes").value.split(",").map(s=>s.trim()).filter(Boolean), colors,
+      desc:$("#f_desc").value.trim(), featured:$("#f_feat").checked, active:$("#f_act").checked, image:clearImg?"":(editing?editing.image||"":""), createdAt:editing?editing.createdAt:Date.now() };
+    if(imageData) rec.imageData=imageData;
+    const b=$("#save"); b.disabled=true;
+    try{ await API.saveProduct(rec); dlg.close(); loadProducts(); }catch(x){ if(!authFail(x)) err(x.message); }
+    b.disabled=false;
+  });
+  show();
+})();
+</script>
+</body>
+</html>

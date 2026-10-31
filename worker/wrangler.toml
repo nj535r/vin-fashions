@@ -1,0 +1,12 @@
+name = "vin-fashions-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Create the namespace once:  npx wrangler kv namespace create VIN   -> paste the id below
+kv_namespaces = [{ binding = "VIN", id = "PASTE_KV_NAMESPACE_ID_HERE" }]
+
+[vars]
+SITE_URL = "https://vinfashions.online"
+PAYU_ENV = "test"            # change to "live" only after PayU activates your account
+FREE_SHIPPING_ABOVE = "999"
+SHIPPING_FEE = "60"
