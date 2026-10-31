@@ -8,8 +8,8 @@ window.VIN_CONFIG = {
   SHIPPING_FEE: 60,
   CONTACT: {
     email: "help.vinfashions@gmail.com",
-    phone: "+91 00000 00000",
-    address: "VIN Fashions, (your shop address), India",
+    phone: "+91 95858 94036",
+    address: "VIN Fashions, Pondy-Mailam Main Road, Sedhenapattu, Villupuram - 605109, Tamil Nadu, India",
     hours: "Mon–Sat, 10:00–19:00 IST"
   },
   CATEGORIES: ["Nighties", "Kurtis", "Sarees", "Western Wear", "Lounge Wear", "Kids", "Men"]
