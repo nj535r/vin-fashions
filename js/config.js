@@ -2,7 +2,7 @@
 // While API is empty, checkout runs in DEMO mode (no real payment, no e-mails).
 window.VIN_CONFIG = {
   API: "https://script.google.com/macros/s/AKfycbzQIl-ikyFPq_uBPyxXUPtg66IHBNOP2M15-LLMpP2SxXsAzexDu6DonQDh-6aYP4cu/exec",
-  GITHUB: { repo: "sedhupathivishnu321/vin-fashions", branch: "main" }, // used by /admin to save products
+  GITHUB: { repo: "nj535r/vin-fashions", branch: "main" }, // used by /admin to save products
   SITE: "https://vinfashions.online",
   FREE_SHIPPING_ABOVE: 999,
   SHIPPING_FEE: 60,

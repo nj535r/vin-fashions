@@ -11,9 +11,9 @@ Everything is hosted on GitHub Pages. No database, no extra hosting.
 | Payment hash, PayU callback, order e-mails | `apps-script/Code.gs` – a Google Apps Script in help.vinfashions@gmail.com (GitHub Pages cannot run server code, and PayU requires it) |
 
 ## 1. Publish on GitHub Pages
-1. Push this repo to GitHub as `sedhupathivishnu321/vin-fashions` (public).
+1. Push this repo to GitHub as `nj535r/vin-fashions` (public).
 2. Settings → Pages → Deploy from branch `main`, folder `/ (root)`. Custom domain `vinfashions.online` (the `CNAME` file is already here), tick *Enforce HTTPS*.
-3. DNS at your registrar: four `A` records for `@` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`; `CNAME` `www` → `sedhupathivishnu321.github.io`.
+3. DNS at your registrar: four `A` records for `@` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`; `CNAME` `www` → `nj535r.github.io`.
 
 ## 2. Backend: payments, accounts, admin login, order e-mails (Google Apps Script)
 1. script.google.com, signed in as help.vinfashions@gmail.com -> open the existing project -> replace the code with `apps-script/Code.gs`.
