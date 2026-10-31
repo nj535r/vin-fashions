@@ -247,3 +247,11 @@ function account(b) {
   }
   throw new Error("Unknown request");
 }
+
+// Run this ONCE from the editor (function dropdown -> authorize -> Run) so Google asks you to approve
+// Gmail, Google Sheets and external-request access. Then redeploy a New version.
+function authorize() {
+  UrlFetchApp.fetch(CFG.SITE);
+  GmailApp.getInboxUnreadCount();
+  const ss = SpreadsheetApp.create("VIN permission check"); DriveApp.getFileById(ss.getId()).setTrashed(true);
+}
