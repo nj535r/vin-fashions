@@ -14,15 +14,20 @@
 <main class="wrap adm" id="main">
   <section id="login" style="max-width:460px;margin:40px auto" hidden>
     <h1 style="font-size:1.5rem">Admin login</h1>
-    <p class="muted">Paste your GitHub access token (only you have it). It stays in this browser tab and is sent only to github.com. See README, “Admin token”, to create one.</p>
-    <form id="lf"><div class="fld"><label for="pw">GitHub token</label><input id="pw" type="password" autocomplete="off" required placeholder="github_pat_…"></div>
+    <form id="lf"><div class="fld"><label for="em">Admin email</label><input id="em" type="email" autocomplete="username" required></div>
+    <div class="fld"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
     <div id="lerr" role="alert"></div><button class="btn" style="width:100%">Log in</button></form>
   </section>
 
   <section id="app" hidden>
-    <div class="msg info">Changes are saved to the website’s GitHub repository and go live about a minute after saving. Orders arrive by e-mail. Set <b>Stock</b> to 0 when an item sells out.</div>
+    <div class="tabs" role="tablist"><button role="tab" id="t1" aria-selected="true">Products</button><button role="tab" id="t2" aria-selected="false">Orders <span id="oc"></span></button></div>
+    <div id="p1"><div class="msg info">Changes are saved to the website’s GitHub repository and go live about a minute after saving. Orders arrive by e-mail. Set <b>Stock</b> to 0 when an item sells out.</div>
     <div class="sec-h"><h2 style="margin:0">Products <span class="muted" id="pc"></span></h2><button class="btn accent" id="addp">+ Add clothing</button></div>
-    <div class="tw"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div></div>
+    <div id="p2" hidden>
+      <div class="sec-h"><h2 style="margin:0">Orders <span class="muted" id="uc"></span></h2><button class="btn ghost sm" id="refresh">Refresh</button></div>
+      <div class="tw"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfilment</th></tr></thead><tbody id="otb"></tbody></table></div>
+    </div>
   </section>
 </main>
 
@@ -54,7 +59,7 @@
 <script>
 (function(){
   const {$,esc,money,CFG,uid}=VIN, GH=CFG.GITHUB;
-  let token=""; try{token=sessionStorage.getItem("vin_gh")||"";}catch(e){}
+  let token="", at=""; try{token=sessionStorage.getItem("vin_gh")||""; at=sessionStorage.getItem("vin_at")||"";}catch(e){}
   let products=[], sha="";
   const img=p=>p.image?"../"+p.image:VIN.imgOf(p);
   const b64=t=>btoa(unescape(encodeURIComponent(t)));
@@ -67,12 +72,12 @@
   }
   const bad=(box,m)=>{box.innerHTML='<div class="msg err"></div>';box.firstChild.textContent=m;};
   const show=()=>{ $("#login").hidden=!!token; $("#app").hidden=!token; $("#out").hidden=!token; if(token) load(); };
-  function logout(){token="";try{sessionStorage.removeItem("vin_gh");}catch(e){}show();}
+  function logout(){token="";at="";try{sessionStorage.removeItem("vin_gh");sessionStorage.removeItem("vin_at");}catch(e){}show();}
   async function load(){
     try{
       const j=await gh("/contents/products.json?ref="+GH.branch+"&t="+Date.now());
       sha=j.sha; products=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));
-    }catch(e){ if(e.status===401||e.status===403||e.status===404){logout();bad($("#lerr"),"GitHub rejected this token (it needs Contents: read & write on "+GH.repo+").");} else alert(e.message); return; }
+    }catch(e){ if(e.status===401||e.status===403||e.status===404){logout();bad($("#lerr"),"GitHub rejected the stored site token (needs Contents: read & write on "+GH.repo+"). Update GH_TOKEN_SITE in the script.");} else alert(e.message); return; }
     draw();
   }
   async function commit(msg){
@@ -80,7 +85,25 @@
     sha=j.content.sha;
   }
   async function guarded(fn){ try{await fn();}catch(e){ if(e.status===409){alert("The catalogue changed elsewhere. Reloading – please repeat your change.");await load();} else alert(e.message); } }
-  $("#lf").addEventListener("submit",e=>{e.preventDefault();token=$("#pw").value.trim();$("#pw").value="";try{sessionStorage.setItem("vin_gh",token);}catch(x){} $("#lerr").innerHTML="";show();});
+  const call=async(action,data)=>{
+    const r=await fetch(CFG.API,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(Object.assign({action},data))});
+    const j=await r.json().catch(()=>({error:"Unexpected reply"})); if(j.error) throw new Error(j.error); return j; };
+  $("#lf").addEventListener("submit",async e=>{e.preventDefault(); const b=e.target.querySelector("button"); b.disabled=true;
+    try{ const r=await call("adminLogin",{email:$("#em").value.trim(),password:$("#pw").value});
+      if(!r.ghToken) throw new Error("Server is missing GH_TOKEN_SITE (see README).");
+      token=r.ghToken; at=r.token; $("#pw").value=""; try{sessionStorage.setItem("vin_gh",token);sessionStorage.setItem("vin_at",at);}catch(x){} $("#lerr").innerHTML=""; show(); }
+    catch(x){ bad($("#lerr"),x.message); } b.disabled=false; });
+  const tab=n=>{[1,2].forEach(i=>{$("#p"+i).hidden=i!==n;$("#t"+i).setAttribute("aria-selected",i===n);}); if(n===2) loadOrders();};
+  $("#t1").onclick=()=>tab(1); $("#t2").onclick=()=>tab(2); $("#refresh").onclick=()=>loadOrders();
+  async function loadOrders(){
+    try{ const r=await call("adminOrders",{token:at}); $("#uc").textContent="· "+r.users+" registered customers"; $("#oc").textContent="("+r.orders.length+")";
+      const F=["new","packed","shipped","delivered","cancelled"];
+      $("#otb").innerHTML=r.orders.map(o=>`<tr><td><b>${esc(o.id)}</b></td><td>${new Date(o.createdAt).toLocaleString("en-IN")}</td>
+        <td>${esc(o.customer.name)}<br><span class="muted">${esc(o.customer.phone)} · ${esc(o.customer.email)}</span><br><span class="muted">${esc(o.customer.address)}, ${esc(o.customer.city)}, ${esc(o.customer.state)} ${esc(o.customer.pincode)}</span></td>
+        <td>${o.items.map(i=>`${esc(i.name)} (${esc([i.color,i.size].filter(Boolean).join("/"))}) × ${esc(i.qty)}`).join("<br>")}</td><td>${money(o.total)}</td>
+        <td><select data-o="${esc(o.id)}" aria-label="Fulfilment for ${esc(o.id)}">${F.map(f=>`<option${f===(o.fulfilment||"new")?" selected":""}>${f}</option>`).join("")}</select></td></tr>`).join("")||'<tr><td colspan="6" class="muted">No paid orders yet.</td></tr>';
+    }catch(e){ if(/log in again/i.test(e.message)) logout(); else alert(e.message); } }
+  $("#otb").addEventListener("change",async e=>{const s=e.target.closest("[data-o]"); if(s){ try{await call("adminFulfil",{token:at,id:s.dataset.o,fulfilment:s.value});}catch(x){alert(x.message);} }});
   $("#out").onclick=logout;
   function draw(){
     $("#pc").textContent="("+products.length+")";

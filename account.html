@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My account – VIN Fashions</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/logo.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="hdr"></div>
+<main id="main" class="wrap">
+  <div id="guest" style="max-width:440px;margin:36px auto" hidden>
+    <div class="tabs" role="tablist"><button role="tab" id="tl" aria-selected="true">Log in</button><button role="tab" id="ts" aria-selected="false">Create account</button></div>
+    <form id="fl" class="box" novalidate>
+      <div class="fld"><label for="le">Email</label><input id="le" type="email" autocomplete="email" required></div>
+      <div class="fld"><label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required></div>
+      <div class="err" role="alert"></div><button class="btn accent" style="width:100%">Log in</button>
+    </form>
+    <form id="fs" class="box" novalidate hidden>
+      <div class="fld"><label for="sn">Full name</label><input id="sn" autocomplete="name" required maxlength="80"></div>
+      <div class="fld"><label for="se">Email</label><input id="se" type="email" autocomplete="email" required maxlength="100"></div>
+      <div class="fld"><label for="sph">Mobile (10 digits)</label><input id="sph" inputmode="numeric" autocomplete="tel-national" required maxlength="10"></div>
+      <div class="fld"><label for="sp">Password (8+ characters)</label><input id="sp" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></div>
+      <div class="err" role="alert"></div><button class="btn accent" style="width:100%">Create account</button>
+    </form>
+    <p class="muted" style="font-size:.88rem">You can also check out as a guest. We store only what is needed to deliver your orders. Forgot your password? Email <span id="sup"></span>.</p>
+  </div>
+
+  <div id="mine" hidden style="padding:28px 0 56px">
+    <div class="sec-h"><h1 id="hi" style="font-size:1.6rem;margin:0"></h1><button class="btn ghost sm" id="logout">Log out</button></div>
+    <div class="cartg">
+      <section><h2>My orders</h2><div id="orders" aria-live="polite"><p class="muted">Loading…</p></div></section>
+      <aside><form class="box" id="fa" novalidate><h2 style="font-size:1.1rem">Saved delivery address</h2>
+        <div class="fld"><label for="aa">Address</label><textarea id="aa" rows="2" maxlength="250" required></textarea></div>
+        <div class="two"><div class="fld"><label for="ac">City</label><input id="ac" maxlength="60" required></div><div class="fld"><label for="as">State</label><input id="as" maxlength="60" required></div></div>
+        <div class="fld" style="max-width:200px"><label for="ap">PIN code</label><input id="ap" inputmode="numeric" maxlength="6" required></div>
+        <div class="err" role="alert"></div><button class="btn">Save address</button></form></aside>
+    </div>
+  </div>
+</main>
+<div id="ftr"></div>
+<script src="js/config.js"></script><script src="js/app.js"></script>
+<script>
+(function(){
+  const {$,$$,esc,money,Account,CFG,chrome}=VIN;
+  chrome("");
+  $("#sup").textContent=CFG.CONTACT.email;
+  const bad=(f,m)=>{const e=$(".err",f);e.innerHTML='<div class="msg err"></div>';e.firstChild.textContent=m;};
+  const ok=(f,m)=>{const e=$(".err",f);e.innerHTML='<div class="msg ok"></div>';e.firstChild.textContent=m;};
+  const tab=(n)=>{$("#fl").hidden=n!==1;$("#fs").hidden=n!==2;$("#tl").setAttribute("aria-selected",n===1);$("#ts").setAttribute("aria-selected",n===2);};
+  $("#tl").onclick=()=>tab(1);$("#ts").onclick=()=>tab(2);
+  async function submit(f,action,data,btn){
+    const b=$("button:last-of-type",f); b.disabled=true;
+    try{ const r=await Account.call(action,data); Account.set({token:r.token,user:r.user}); view(); }
+    catch(e){ bad(f,e.message); } b.disabled=false;
+  }
+  $("#fl").addEventListener("submit",e=>{e.preventDefault();submit(e.target,"login",{email:$("#le").value.trim(),password:$("#lp").value});});
+  $("#fs").addEventListener("submit",e=>{e.preventDefault();
+    const d={name:$("#sn").value.trim(),email:$("#se").value.trim(),phone:$("#sph").value.trim(),password:$("#sp").value};
+    if(d.name.length<2||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) return bad(e.target,"Enter your name and a valid email.");
+    if(!/^[6-9]\d{9}$/.test(d.phone)) return bad(e.target,"Enter a valid 10-digit mobile number.");
+    if(d.password.length<8) return bad(e.target,"Password must be at least 8 characters.");
+    submit(e.target,"signup",d);});
+  $("#logout").onclick=()=>{Account.set(null);view();};
+  $("#fa").addEventListener("submit",async e=>{e.preventDefault();
+    const a={address:$("#aa").value.trim(),city:$("#ac").value.trim(),state:$("#as").value.trim(),pincode:$("#ap").value.trim()};
+    try{ const r=await Account.call("saveAddress",{token:Account.get().token,address:a}); Account.set({token:Account.get().token,user:r.user}); ok(e.target,"Address saved."); }
+    catch(x){ bad(e.target,x.message); } });
+  async function view(){
+    const s=Account.get();
+    $("#guest").hidden=!!s; $("#mine").hidden=!s; if(!s) return;
+    $("#hi").textContent="Hello, "+s.user.name.split(" ")[0];
+    const a=s.user.address||{}; $("#aa").value=a.address||"";$("#ac").value=a.city||"";$("#as").value=a.state||"";$("#ap").value=a.pincode||"";
+    try{
+      const r=await Account.call("me",{token:s.token}); Account.set({token:s.token,user:r.user});
+      $("#orders").innerHTML=r.orders.length?r.orders.map(o=>`<div class="box" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(o.id)}</b><span class="pill ${esc(o.fulfilment)}">${esc(o.fulfilment)}</span></div>
+        <div class="muted" style="font-size:.88rem">${new Date(o.createdAt).toLocaleDateString("en-IN")} · ${money(o.total)}</div>
+        <div style="font-size:.93rem;margin-top:6px">${o.items.map(i=>esc(i.name)+" × "+i.qty).join("<br>")}</div></div>`).join(""):'<p class="muted">No orders yet. <a href="shop.html">Start shopping</a></p>';
+    }catch(e){ if(/log in again/i.test(e.message)){Account.set(null);view();} else $("#orders").textContent=e.message; }
+  }
+  if(VIN.DEMO){ $("#guest").innerHTML='<p class="msg info">Accounts are available once the backend API is configured.</p>'; $("#guest").hidden=false; }
+  else view();
+})();
+</script>
+</body>
+</html>

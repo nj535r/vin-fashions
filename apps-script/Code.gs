@@ -5,7 +5,10 @@
  *   2. receives PayU's POST callback, verifies hash + amount      -> POST (form-encoded, from PayU)
  *   3. e-mails the order to the owner and a receipt to the buyer
  *   4. answers "is order X paid?" for the thank-you page          -> GET ?id=X
- * Secrets live in Project Settings -> Script properties: PAYU_KEY, PAYU_SALT (never in GitHub).
+ *   5. customer accounts + order history, stored as users.json / orders.json in a PRIVATE GitHub repo
+ *   6. admin login (e-mail + password checked here) -> returns the GitHub token the admin panel needs
+ * Secrets live in Project Settings -> Script properties, never in GitHub:
+ *   PAYU_KEY, PAYU_SALT, GH_TOKEN (data repo only), GH_TOKEN_SITE (site repo only), SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
  */
 const CFG = {
   SITE: "https://vinfashions.online",
@@ -13,6 +16,7 @@ const CFG = {
   SUPPORT: "help.vinfashions@gmail.com",
   FREE_ABOVE: 999,
   FEE: 60,
+  DATA_REPO: "sedhupathivishnu321/vin-fashions-data", // PRIVATE repo holding users.json + orders.json
   PAYU_ENV: "test" // change to "live" only after PayU activates your account
 };
 
@@ -36,7 +40,9 @@ function doPost(e) {
   try {
     const type = (e.postData && e.postData.type) || "";
     if (type.indexOf("x-www-form-urlencoded") >= 0) return callback(e.parameter); // PayU
-    return out(createOrder(JSON.parse(e.postData.contents)));
+    const body = JSON.parse(e.postData.contents);
+    if (body.action) return out(account(body));
+    return out(createOrder(body));
   } catch (err) {
     return out({ error: String(err.message || err).slice(0, 120) });
   }
@@ -70,7 +76,7 @@ function createOrder(body) {
   const shipping = subtotal >= CFG.FREE_ABOVE ? 0 : CFG.FEE, total = subtotal + shipping;
   const c = body.customer, id = "VIN" + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
   const order = {
-    id: id, items: lines, subtotal: subtotal, shipping: shipping, total: total, status: "pending", createdAt: Date.now(),
+    id: id, userId: userFromToken(body.token), items: lines, subtotal: subtotal, shipping: shipping, total: total, status: "pending", createdAt: Date.now(),
     customer: { name: str(c.name, 80), email: str(c.email, 100), phone: str(c.phone, 10), address: str(c.address, 250), city: str(c.city, 60), state: str(c.state, 60), pincode: str(c.pincode, 6) }
   };
   prune();
@@ -103,6 +109,7 @@ function callback(p) {
     o.status = "paid"; o.payuId = p.mihpayid || ""; o.paidAt = Date.now();
     sp.setProperty(key, JSON.stringify(o));
     try { notify(o); } catch (e) { /* payment is recorded; mail failure must not break the page */ }
+    try { dbUpdate("orders.json", (a) => { a.unshift(o); return a; }, "Order " + o.id); } catch (e) { /* e-mail is the fallback record */ }
     return page(o.id, "Payment received", true);
   }
   if (okHash && okAmt) { o.status = p.status === "pending" ? "pending" : "failed"; sp.setProperty(key, JSON.stringify(o)); }
@@ -124,4 +131,98 @@ function notify(o) {
 function prune() {
   const all = props().getProperties(), cut = Date.now() - 30 * 864e5;
   Object.keys(all).forEach((k) => { if (k.indexOf("o_") === 0) { try { if (JSON.parse(all[k]).createdAt < cut) props().deleteProperty(k); } catch (e) { props().deleteProperty(k); } } });
+}
+
+
+/* ================= accounts + admin (private GitHub repo as a tiny database) ================= */
+const sha256 = (s) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)
+  .map((b) => ("0" + (b < 0 ? b + 256 : b).toString(16)).slice(-2)).join("");
+const hmac = (m) => Utilities.computeHmacSha256Signature(m, props().getProperty("SESSION_SECRET") || "")
+  .map((b) => ("0" + (b < 0 ? b + 256 : b).toString(16)).slice(-2)).join("");
+const same = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
+function hashPw(pw, salt) { let h = salt + pw; for (let i = 0; i < 3000; i++) h = sha256(h + pw); return h; }
+
+function gh(path, method, body) {
+  const r = UrlFetchApp.fetch("https://api.github.com/repos/" + CFG.DATA_REPO + path, {
+    method: method || "get", muteHttpExceptions: true, contentType: "application/json", payload: body ? JSON.stringify(body) : undefined,
+    headers: { Authorization: "Bearer " + props().getProperty("GH_TOKEN"), Accept: "application/vnd.github+json" }
+  });
+  return { code: r.getResponseCode(), json: JSON.parse(r.getContentText() || "{}") };
+}
+function dbRead(name) {
+  const r = gh("/contents/" + name);
+  if (r.code === 404) return { sha: undefined, data: [] };
+  if (r.code !== 200) throw new Error("Database unavailable");
+  return { sha: r.json.sha, data: JSON.parse(Utilities.newBlob(Utilities.base64Decode(r.json.content.replace(/\n/g, ""))).getDataAsString()) };
+}
+// read-modify-write under a lock so two simultaneous signups/orders cannot overwrite each other
+function dbUpdate(name, fn, msg) {
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const cur = dbRead(name), next = fn(cur.data);
+    const w = gh("/contents/" + name, "put", { message: msg || ("Update " + name), content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(next, null, 1)).getBytes()), sha: cur.sha });
+    if (w.code !== 200 && w.code !== 201) throw new Error("Could not save");
+    return next;
+  } finally { lock.releaseLock(); }
+}
+
+// 5 wrong tries per key -> locked for 10 minutes
+function throttle(key, failed) {
+  const sp = props(), k = "t_" + key, t = JSON.parse(sp.getProperty(k) || '{"n":0,"t":0}'), now = Date.now();
+  if (failed === undefined) { if (t.n >= 5 && now - t.t < 600000) throw new Error("Too many attempts. Try again in 10 minutes."); return; }
+  if (failed) sp.setProperty(k, JSON.stringify({ n: (now - t.t < 600000 ? t.n : 0) + 1, t: now })); else sp.deleteProperty(k);
+}
+const mkToken = (kind, id, hours) => { const exp = Date.now() + hours * 3600e3, m = kind + "." + id + "." + exp; return m + "." + hmac(m); };
+function readToken(kind, tok) {
+  const p = String(tok || "").split(".");
+  if (p.length !== 4 || p[0] !== kind || +p[2] < Date.now() || !same(p[3], hmac(p.slice(0, 3).join(".")))) return "";
+  return p[1];
+}
+function userFromToken(tok) { return readToken("u", tok); }
+const publicUser = (u) => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, address: u.address || null });
+
+function account(b) {
+  const a = b.action;
+  if (a === "signup") {
+    const name = str(b.name, 80), email = str(b.email, 100).toLowerCase(), phone = str(b.phone, 10), pw = String(b.password || "");
+    if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^[6-9]\d{9}$/.test(phone)) throw new Error("Please check your name, email and mobile number");
+    if (pw.length < 8 || pw.length > 100) throw new Error("Password must be at least 8 characters");
+    const salt = Utilities.getUuid(), u = { id: "u" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), name: name, email: email, phone: phone, salt: salt, pw: hashPw(pw, salt), createdAt: Date.now() };
+    dbUpdate("users.json", (all) => { if (all.some((x) => x.email === email)) throw new Error("An account with this email already exists"); all.push(u); return all; }, "New user");
+    return { token: mkToken("u", u.id, 24 * 30), user: publicUser(u) };
+  }
+  if (a === "login") {
+    const email = str(b.email, 100).toLowerCase(); throttle(email);
+    const u = dbRead("users.json").data.filter((x) => x.email === email)[0];
+    if (!u || !same(hashPw(String(b.password || ""), u.salt), u.pw)) { throttle(email, true); throw new Error("Wrong email or password"); }
+    throttle(email, false);
+    return { token: mkToken("u", u.id, 24 * 30), user: publicUser(u) };
+  }
+  if (a === "me" || a === "saveAddress") {
+    const uid = userFromToken(b.token); if (!uid) throw new Error("Please log in again");
+    let user;
+    if (a === "saveAddress") {
+      const ad = b.address || {}, addr = { address: str(ad.address, 250), city: str(ad.city, 60), state: str(ad.state, 60), pincode: str(ad.pincode, 6) };
+      if (addr.address.length < 8 || !addr.city || !addr.state || !/^\d{6}$/.test(addr.pincode)) throw new Error("Please check the address");
+      dbUpdate("users.json", (all) => { const u = all.filter((x) => x.id === uid)[0]; if (!u) throw new Error("Account not found"); u.address = addr; user = u; return all; }, "Update address");
+    } else user = dbRead("users.json").data.filter((x) => x.id === uid)[0];
+    if (!user) throw new Error("Account not found");
+    const orders = dbRead("orders.json").data.filter((o) => o.userId === uid).map((o) => ({ id: o.id, createdAt: o.createdAt, total: o.total, status: o.status, fulfilment: o.fulfilment || "new", items: o.items }));
+    return { user: publicUser(user), orders: orders };
+  }
+  if (a === "adminLogin") {
+    throttle("admin");
+    const P = props(), okE = same(str(b.email, 100).toLowerCase(), String(P.getProperty("ADMIN_EMAIL") || "").toLowerCase()), okP = same(String(b.password || ""), P.getProperty("ADMIN_PASSWORD") || "\u0000");
+    if (!(okE && okP)) { throttle("admin", true); throw new Error("Wrong email or password"); }
+    throttle("admin", false);
+    return { token: mkToken("a", "admin", 12), ghToken: P.getProperty("GH_TOKEN_SITE") };
+  }
+  if (a === "adminOrders" || a === "adminFulfil") {
+    if (readToken("a", b.token) !== "admin") throw new Error("Please log in again");
+    if (a === "adminOrders") return { orders: dbRead("orders.json").data, users: dbRead("users.json").data.length };
+    if (["new", "packed", "shipped", "delivered", "cancelled"].indexOf(b.fulfilment) < 0) throw new Error("Bad status");
+    dbUpdate("orders.json", (all) => { const o = all.filter((x) => x.id === b.id)[0]; if (o) o.fulfilment = b.fulfilment; return all; }, "Order " + b.id + " " + b.fulfilment);
+    return { ok: true };
+  }
+  throw new Error("Unknown request");
 }

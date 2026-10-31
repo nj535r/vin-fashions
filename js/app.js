@@ -81,6 +81,11 @@
     if (j.error) throw new Error(j.error);
     return j;
   }
+  const Account = {
+    get() { return LS.get("vin_user", null); },
+    set(v) { try { v ? LS.set("vin_user", v) : localStorage.removeItem("vin_user"); } catch (e) {} },
+    call(action, data) { if (DEMO) throw new Error("Accounts need the live backend"); return script("", Object.assign({ action }, data)); }
+  };
   const API = {
     DEMO,
     async products() {
@@ -97,7 +102,7 @@
         LS.set("vin_demo_order", { id, status: "paid", total: pr.total });
         return { demo: true, id };
       }
-      return script("", { items: items.map((i) => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })), customer });
+      return script("", { token: (Account.get() || {}).token, items: items.map((i) => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })), customer });
     },
     async orderStatus(id) {
       if (DEMO) { const o = LS.get("vin_demo_order", null); return o && o.id === id ? o : null; }
@@ -117,6 +122,7 @@
 
   const ICON = {
     bag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>',
     menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
     search: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>'
   };
@@ -133,7 +139,7 @@
         ${link("index.html", "Home", "home")}${link("shop.html", "Shop all", "shop")}${link("shop.html?cat=Nighties", "Nighties", "nighties")}${link("shop.html?cat=Kurtis", "Kurtis", "kurtis")}${link("shop.html?cat=Sarees", "Sarees", "sarees")}${link("policies.html#contact", "Contact", "contact")}
       </nav>
       <form class="search" role="search" action="shop.html"><label class="sr" for="q">Search</label><input id="q" name="q" type="search" placeholder="Search clothing" autocomplete="off"><button aria-label="Search">${ICON.search}</button></form>
-      <div class="icons"><a class="ibtn" href="cart.html" aria-label="Shopping bag">${ICON.bag}<span class="badge" id="cartCount" hidden>0</span></a></div>
+      <div class="icons"><a class="ibtn" href="account.html" aria-label="My account">${ICON.user}</a><a class="ibtn" href="cart.html" aria-label="Shopping bag">${ICON.bag}<span class="badge" id="cartCount" hidden>0</span></a></div>
     </div></header>`;
     const ft = $("#ftr");
     if (ft) ft.outerHTML = `<footer class="site"><div class="wrap">
@@ -151,5 +157,5 @@
     updateBadge();
   }
 
-  window.VIN = { CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
+  window.VIN = { Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };
 })();
