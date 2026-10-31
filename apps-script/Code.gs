@@ -48,9 +48,15 @@ function doPost(e) {
 }
 
 function catalogue() {
-  const r = UrlFetchApp.fetch(CFG.SITE + "/products.json?t=" + Date.now(), { muteHttpExceptions: true });
-  if (r.getResponseCode() !== 200) throw new Error("Catalogue unavailable");
-  return JSON.parse(r.getContentText());
+  // try the real domain first, then the GitHub address (works before DNS/HTTPS for the domain is ready)
+  const urls = [CFG.SITE, "https://nj535r.github.io/vin-fashions"];
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const r = UrlFetchApp.fetch(urls[i] + "/products.json?t=" + Date.now(), { muteHttpExceptions: true, followRedirects: true });
+      if (r.getResponseCode() === 200) return JSON.parse(r.getContentText());
+    } catch (e) { /* try the next address */ }
+  }
+  throw new Error("Catalogue unavailable");
 }
 
 function validCustomer(c) {
@@ -251,7 +257,7 @@ function account(b) {
 // Run this ONCE from the editor (function dropdown -> authorize -> Run) so Google asks you to approve
 // Gmail, Google Sheets and external-request access. Then redeploy a New version.
 function authorize() {
-  UrlFetchApp.fetch(CFG.SITE);
+  try { UrlFetchApp.fetch(CFG.SITE); } catch (e) { }
   GmailApp.getInboxUnreadCount();
   try { SpreadsheetApp.openById("permission-check"); } catch (e) { /* expected: only here so Google asks for Sheets access */ }
 }
