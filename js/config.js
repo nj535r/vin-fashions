@@ -7,7 +7,7 @@ window.VIN_CONFIG = {
   FREE_SHIPPING_ABOVE: 999,
   SHIPPING_FEE: 60,
   CONTACT: {
-    email: "hello@vinfashions.online",
+    email: "help.vinfashions@gmail.com",
     phone: "+91 00000 00000",
     address: "VIN Fashions, (your shop address), India",
     hours: "Mon–Sat, 10:00–19:00 IST"

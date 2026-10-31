@@ -115,7 +115,7 @@ async function createOrder(req, env, body) {
   return json({ id, action: payuUrl(env), fields }, 200, req, env);
 }
 
-async function payuCallback(req, env) {
+async function payuCallback(req, env, ctx) {
   const form = await req.formData();
   const p = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
   const site = env.SITE_URL || "https://vinfashions.online";
@@ -132,6 +132,7 @@ async function payuCallback(req, env) {
     const products = await getProducts(env);                       // decrement stock
     order.items.forEach((l) => { const x = products.find((q) => q.id === l.id); if (x) x.stock = Math.max(0, x.stock - l.qty); });
     await putProducts(env, products);
+    ctx && ctx.waitUntil(notify(env, order));
   } else if (okHash && p.status !== "success") {
     order.status = p.status === "pending" ? "pending" : "failed";
     await env.VIN.put("order:" + order.id, JSON.stringify(order));
@@ -139,9 +140,17 @@ async function payuCallback(req, env) {
   return back(order.id);
 }
 
+/* ---------- order e-mails via a Google Apps Script web app (see apps-script.gs) ---------- */
+async function notify(env, order) {
+  if (!env.NOTIFY_URL) return;
+  try {
+    await fetch(env.NOTIFY_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ token: env.NOTIFY_TOKEN, order }), redirect: "follow" });
+  } catch (e) { /* order is already saved; e-mail failure must not break the callback */ }
+}
+
 /* ---------- router ---------- */
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url), path = url.pathname, m = req.method;
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: cors(req, env) });
     try {
@@ -167,7 +176,7 @@ export default {
         const o = JSON.parse(raw);
         return json({ id: o.id, status: o.status, total: o.total }, 200, req, env);
       }
-      if (path === "/api/payu/callback" && m === "POST") return payuCallback(req, env);
+      if (path === "/api/payu/callback" && m === "POST") return payuCallback(req, env, ctx);
 
       /* ---- admin ---- */
       if (path === "/api/admin/login" && m === "POST") {

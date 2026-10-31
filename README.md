@@ -28,3 +28,7 @@ Static storefront (GitHub Pages) + one small Cloudflare Worker (admin API, PayU 
 - Salt and admin password exist only as Worker secrets, never in this repo.
 - Admin is on a public URL: use a long password, and consider Cloudflare Access in front of it.
 - Product text is always HTML-escaped when displayed.
+
+## Order e-mails
+Paid orders are e-mailed to nagaarjun1157@gmail.com (cc help.vinfashions@gmail.com) and a confirmation goes to the customer. This uses a Google Apps Script in the support Gmail account, so no mail password is stored anywhere: follow the steps in `worker/apps-script.gs`, then
+`npx wrangler secret put NOTIFY_URL` and `npx wrangler secret put NOTIFY_TOKEN`.
