@@ -1,12 +1,13 @@
 [
  {
   "id": "n1",
-  "name": "Rose Cotton Nightie",
+  "name": "Cotton Nightie",
   "category": "Nighties",
-  "price": 549,
-  "mrp": 799,
+  "price": 328,
+  "mrp": 435,
+  "stock": 10,
   "sizes": [
-   "Free Size"
+   "XXL"
   ],
   "colors": [
    {
@@ -18,11 +19,14 @@
     "h": "#9f1239"
    }
   ],
-  "stock": 25,
   "desc": "Soft breathable cotton nighty with a relaxed fit and lace-trimmed neckline.",
   "featured": true,
   "active": true,
-  "image": "",
+  "image": "img/n1-mvxawtnk-1.jpg",
+  "images": [
+   "img/n1-mvxawtnk-1.jpg",
+   "img/n1-mvxawtnk-2.jpg"
+  ],
   "createdAt": 1793467673989
  },
  {
