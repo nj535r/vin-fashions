@@ -121,10 +121,59 @@
   function card(p) {
     const off = p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0;
     const out = !(p.stock > 0);
+    const isNew = p.createdAt && Date.now() - p.createdAt < 30 * 864e5;
+    const tags = (out ? '<span class="tag out">Sold out</span>' : off ? `<span class="tag">Sale</span>` : "") + (isNew && !out ? '<span class="tag new">New</span>' : "");
     return `<a class="card" href="product.html?id=${encodeURIComponent(p.id)}">
-      <div class="im"><img src="${esc(imgOf(p))}" alt="${esc(p.name)}" loading="lazy" width="300" height="380">${out ? '<span class="tag out">Sold out</span>' : off ? `<span class="tag">${off}% off</span>` : ""}</div>
+      <div class="im"><img src="${esc(imgOf(p))}" alt="${esc(p.name)}" loading="lazy" width="300" height="380"><div class="tags">${tags}</div></div>
+      <div class="cat-l">${esc(p.category)}</div>
       <h3>${esc(p.name)}</h3>
-      <div class="price"><b>${money(p.price)}</b>${off ? `<s>${money(p.mrp)}</s>` : ""}</div></a>`;
+      <div class="price"><b${off ? ' class="sale"' : ""}>${money(p.price)}</b>${off ? `<s>${money(p.mrp)}</s><span class="off">${off}% off</span>` : ""}</div></a>`;
+  }
+
+
+  /* ---------- registration is mandatory: every shop page shows a sign-up wall until the visitor has an account ---------- */
+  function gate() {
+    if (DEMO || Account.get() || /\/(account|policies)\.html$/.test(location.pathname)) return;
+    const m = document.createElement("div");
+    m.className = "gate";
+    m.innerHTML = `<div class="gbox" role="dialog" aria-modal="true" aria-labelledby="gt"><div class="gimg"><img src="assets/logo.svg" alt="VIN Fashions"></div>
+      <div class="gform"><h2 id="gt">Register to continue</h2><p class="muted" id="gs">Create a free account to browse, order and track your VIN Fashions purchases.</p>
+      <form id="gf" novalidate>
+        <div class="fld" data-s><input id="gn" placeholder="Full name" autocomplete="name" maxlength="80" aria-label="Full name"></div>
+        <div class="fld"><input id="ge" type="email" placeholder="Email" autocomplete="email" maxlength="100" aria-label="Email"></div>
+        <div class="fld" data-s><input id="gp" inputmode="numeric" placeholder="Mobile (10 digits)" autocomplete="tel-national" maxlength="10" aria-label="Mobile"></div>
+        <div class="fld"><input id="gw" type="password" placeholder="Password (8+ characters)" autocomplete="new-password" maxlength="100" aria-label="Password"></div>
+        <div class="err" role="alert"></div><button class="btn" id="gb" style="width:100%;border-radius:99px">Sign up now</button></form>
+      <p class="muted" style="font-size:.9rem;text-align:center;margin:14px 0 0"><span id="gq">Already registered?</span> <a href="#" id="gt2">Log in</a></p></div></div>`;
+    document.body.appendChild(m);
+    document.body.style.overflow = "hidden";
+    let login = false;
+    const q = (s) => m.querySelector(s);
+    q("#gt2").addEventListener("click", (e) => {
+      e.preventDefault(); login = !login;
+      $$("[data-s]", m).forEach((x) => (x.hidden = login));
+      q("#gt").textContent = login ? "Welcome back" : "Register to continue";
+      q("#gb").textContent = login ? "Log in" : "Sign up now";
+      q("#gq").textContent = login ? "New here?" : "Already registered?";
+      q("#gt2").textContent = login ? "Create an account" : "Log in";
+      q("#gw").autocomplete = login ? "current-password" : "new-password";
+    });
+    q("#gf").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const bad = (t) => { const x = q(".err"); x.innerHTML = '<div class="msg err"></div>'; x.firstChild.textContent = t; };
+      const d = { email: q("#ge").value.trim(), password: q("#gw").value };
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) return bad("Enter a valid email.");
+      if (!login) {
+        d.name = q("#gn").value.trim(); d.phone = q("#gp").value.trim();
+        if (d.name.length < 2) return bad("Enter your name.");
+        if (!/^[6-9]\d{9}$/.test(d.phone)) return bad("Enter a valid 10-digit mobile number.");
+        if (d.password.length < 8) return bad("Password must be at least 8 characters.");
+      }
+      const b = q("#gb"); b.disabled = true;
+      try { const r = await Account.call(login ? "login" : "signup", d); Account.set({ token: r.token, user: r.user }); location.reload(); }
+      catch (x) { bad(x.message); b.disabled = false; }
+    });
+    q("#ge").focus();
   }
 
   const ICON = {
@@ -162,6 +211,7 @@
     const b = $("#burger"), nav = $("#mainnav");
     if (b) b.addEventListener("click", () => { const o = nav.classList.toggle("open"); b.setAttribute("aria-expanded", o); });
     updateBadge();
+    gate();
   }
 
   window.VIN = { photosOf, safeImage, safeColor, Account, CFG, DEMO, $, $$, esc, money, LS, art, imgOf, Cart, priceCart, API, card, chrome, uid };

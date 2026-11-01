@@ -26,7 +26,6 @@
   draw();
   const U=VIN.Account.get();
   if(U){ const u=U.user, a=u.address||{}; [["name",u.name],["email",u.email],["phone",u.phone],["addr",a.address],["city",a.city],["state",a.state],["pin",a.pincode]].forEach(([i,v])=>{ if(v) $("#"+i).value=v; }); }
-  else $("#form h2").insertAdjacentHTML("afterend",'<p class="muted" style="font-size:.9rem;margin-top:-6px"><a href="account.html">Log in</a> to autofill and track this order, or continue as guest.</p>');
   $("#lines").addEventListener("click",e=>{
     const a=Cart.items(), d=e.target.closest("[data-d]"), r=e.target.closest("[data-rm]");
     if(d){const it=a[+d.dataset.i]; it.qty=Math.max(1,Math.min(10,it.qty+ +d.dataset.d));}

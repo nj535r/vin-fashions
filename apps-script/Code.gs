@@ -69,6 +69,7 @@ function validCustomer(c) {
 
 function createOrder(body) {
   rate("order", 60, 600000);
+  if (!userFromToken(body.token)) return { error: "Please register or log in to place an order" };
   const sp = props();
   if (!sp.getProperty("PAYU_KEY") || !sp.getProperty("PAYU_SALT")) return { error: "Payments are not configured yet" };
   if (!validCustomer(body.customer)) return { error: "Please check your delivery details" };
